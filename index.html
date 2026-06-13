@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tripoly — Live Confirmations</title>
+
+<!-- ① Zoho CRM JS SDK — handles auth transparently inside Creator widgets -->
+<script src="https://js.zohostatic.com/zohocrm/api/2.0/js/zcrm_sdk_min.js"></script>
+
+<!-- ② Google Fonts with system-font fallback (CSP may block CDN in some orgs) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&family=Nunito:wght@700;800&display=swap"/>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f0f2f7;--surface:#ffffff;--border:#e2e6ef;
+  --text:#111827;--muted:#6b7a99;
+  --green:#16cf76;--green-bg:#eaf8f1;--green-txt:#0a7a46;
+  --blue:#185FA5;--gold:#b87d00;
+}
+/* ③ Use 100% instead of 100vh — widget lives inside an iframe */
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:14px;overflow:hidden;}
+.layout{display:flex;flex-direction:column;height:100%;padding:12px 16px 10px;gap:10px;}
+.header{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#111827 0%,#1e3a5f 50%,#0a7a46 100%);border-radius:14px;padding:12px 24px;flex-shrink:0;}
+.header-left{display:flex;align-items:center;gap:10px;}
+.brand-name{font-family:'Nunito',system-ui,sans-serif;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1;}
+.header-center{display:flex;flex-direction:column;align-items:center;gap:5px;}
+.header-sub{font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:0.3px;}
+.live-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(22,207,118,0.2);color:#16cf76;border:1px solid rgba(22,207,118,0.4);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;letter-spacing:1.5px;}
+.live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:blink 1.4s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.header-right{display:flex;align-items:center;gap:14px;}
+.refresh-btn{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:8px 16px;font-size:13px;font-weight:500;color:#ffffff;cursor:pointer;font-family:'Inter',system-ui,sans-serif;transition:background 0.15s;}
+.refresh-btn:hover{background:rgba(255,255,255,0.2);}
+.refresh-btn:active{transform:scale(0.98);}
+.refresh-btn svg{width:15px;height:15px;stroke:rgba(255,255,255,0.8);}
+.refresh-btn.spinning svg{animation:spinOnce 0.6s linear;}
+@keyframes spinOnce{to{transform:rotate(360deg);}}
+.clock-block{text-align:right;}
+.clock{font-family:'Space Grotesk',system-ui,sans-serif;font-size:24px;font-weight:700;color:#ffffff;line-height:1;}
+.date-str{font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex-shrink:0;}
+.stat-card{border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;}
+.stat-card:nth-child(1){background:linear-gradient(135deg,#0a7a46,#16cf76);color:#fff;}
+.stat-card:nth-child(2){background:linear-gradient(135deg,#185FA5,#378ADD);color:#fff;}
+.stat-card:nth-child(3){background:linear-gradient(135deg,#b87d00,#EF9F27);color:#fff;}
+.stat-card:nth-child(4){background:linear-gradient(135deg,#3C3489,#7F77DD);color:#fff;}
+.stat-icon{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.stat-label{font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:0.8px;font-weight:500;}
+.stat-value{font-family:'Space Grotesk',system-ui,sans-serif;font-size:22px;font-weight:700;line-height:1.1;margin-top:2px;}
+.stat-card:nth-child(4) .stat-value{font-size:15px;}
+.table-head{display:grid;grid-template-columns:48px 190px 1fr 1fr 80px 100px 110px;padding:6px 16px;flex-shrink:0;}
+.th{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;}
+.th.right{text-align:right;}
+.feed{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;}
+.feed::-webkit-scrollbar{width:4px;}
+.feed::-webkit-scrollbar-track{background:transparent;}
+.feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+.row{display:grid;grid-template-columns:48px 190px 1fr 1fr 80px 100px 110px;align-items:center;background:var(--surface);border:1px solid var(--border);border-left:4px solid transparent;border-radius:12px;padding:10px 16px;transition:border-color 0.3s;position:relative;}
+.row.is-new{animation:rowSlide 0.4s ease-out;}
+@keyframes rowSlide{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.av{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;}
+.av-fallback{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;font-family:'Space Grotesk',system-ui,sans-serif;border:2px solid transparent;flex-shrink:0;}
+.cell{padding:0 10px;min-width:0;}
+.c-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.c-dest{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.c-amount{font-family:'Space Grotesk',system-ui,sans-serif;font-size:14px;font-weight:700;color:var(--blue);white-space:nowrap;}
+.c-pax{font-size:12px;color:var(--muted);}
+.c-tdate{font-size:12px;color:var(--muted);white-space:nowrap;}
+.c-time{text-align:right;}
+.c-time-main{font-size:13px;font-weight:500;color:var(--text);}
+.c-time-date{font-size:11px;color:var(--muted);margin-top:1px;}
+.new-tag{display:inline-block;background:var(--green-bg);color:var(--green-txt);font-size:9px;font-weight:700;letter-spacing:1px;padding:1px 7px;border-radius:20px;margin-top:2px;text-transform:uppercase;}
+.git-tag{display:inline-block;background:#e8f1fb;color:#185FA5;font-size:9px;font-weight:700;letter-spacing:1px;padding:1px 7px;border-radius:20px;margin-left:4px;text-transform:uppercase;}
+.state-box{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:14px;}
+.state-box .s-icon{font-size:40px;}
+.footer{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 0;border-top:1px solid var(--border);flex-shrink:0;}
+.footer-left{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);}
+.spinner{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;display:none;}
+.spinner.on{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ④ Celebration overlay: position:absolute inside a relative wrapper
+       so it clips to the widget iframe, not the host page */
+#widget-root{position:relative;height:100%;}
+#cel-overlay{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+  z-index:100;opacity:0;pointer-events:none;transition:opacity 0.3s;
+}
+#cel-overlay.show{opacity:1;pointer-events:auto;}
+.cel-card{background:linear-gradient(135deg,#0a7a46,#16cf76);border-radius:24px;padding:40px 64px;text-align:center;transform:scale(0.85);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 24px 60px rgba(0,0,0,0.3);}
+#cel-overlay.show .cel-card{transform:scale(1);}
+.cel-avatar{width:80px;height:80px;border-radius:50%;margin:0 auto 16px;border:4px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:'Space Grotesk',system-ui,sans-serif;color:#fff;}
+.cel-title{font-family:'Space Grotesk',system-ui,sans-serif;font-size:28px;font-weight:700;color:#ffffff;margin-bottom:6px;}
+.cel-sub{font-size:18px;color:rgba(255,255,255,0.85);}
+.cel-amount{font-family:'Space Grotesk',system-ui,sans-serif;font-size:32px;font-weight:700;color:#ffffff;margin-top:10px;}
+.cel-timer{font-size:12px;color:rgba(255,255,255,0.6);margin-top:8px;}
+
+/* ⑤ Confetti also position:absolute so it stays inside the widget */
+.confetti-p{position:absolute;pointer-events:none;z-index:101;border-radius:2px;animation:fall linear forwards;}
+@keyframes fall{to{transform:translateY(110%) rotate(720deg);opacity:0;}}
+</style>
+</head>
+<body>
+
+<!-- ⑤ Single root with position:relative — overlays anchor to this -->
+<div id="widget-root">
+
+<div class="layout">
+  <div class="header">
+    <div class="header-left">
+      <span class="brand-name">tripoly</span>
+    </div>
+    <div class="header-center">
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+      <div class="header-sub">Live Booking Confirmations — Current Month</div>
+    </div>
+    <div class="header-right">
+      <button class="refresh-btn" id="refreshBtn" onclick="triggerRefresh()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+          <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+        Refresh
+      </button>
+      <div class="clock-block">
+        <div class="clock" id="clock">--:--</div>
+        <div class="date-str" id="dateStr">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="stat-icon">🗓️</div><div><div class="stat-label">Confirmations</div><div class="stat-value" id="sTotal">—</div></div></div>
+    <div class="stat-card"><div class="stat-icon">💰</div><div><div class="stat-label">Total Value</div><div class="stat-value" id="sValue">—</div></div></div>
+    <div class="stat-card"><div class="stat-icon">👥</div><div><div class="stat-label">Total Pax</div><div class="stat-value" id="sPax">—</div></div></div>
+    <div class="stat-card"><div class="stat-icon">🔄</div><div><div class="stat-label">Last Refreshed</div><div class="stat-value" id="sRefresh">—</div></div></div>
+  </div>
+
+  <div class="table-head">
+    <span class="th"></span>
+    <span class="th">Salesperson</span>
+    <span class="th">Destination</span>
+    <span class="th">Booking Value</span>
+    <span class="th">Pax</span>
+    <span class="th">Travel Date</span>
+    <span class="th right">Confirmed At</span>
+  </div>
+
+  <div class="feed" id="feed">
+    <div class="state-box"><div class="s-icon">⏳</div><div>Loading confirmations...</div></div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">
+      <div class="spinner" id="spinner"></div>
+      <span id="footerMsg">Connecting to Zoho CRM...</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);" id="nextRefresh"></div>
+  </div>
+</div><!-- /.layout -->
+
+<!-- ⑥ Celebration overlay (inside widget-root, not body) -->
+<div id="cel-overlay">
+  <div class="cel-card">
+    <div class="cel-avatar" id="celAvatar">🎉</div>
+    <div class="cel-title" id="celTitle">New Booking Confirmed!</div>
+    <div class="cel-sub" id="celSub"></div>
+    <div class="cel-amount" id="celAmount"></div>
+    <div class="cel-timer" id="celTimer"></div>
+  </div>
+</div>
+
+</div><!-- /#widget-root -->
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG — no tokens needed; Zoho CRM JS SDK handles auth inside Creator widgets
+// ─────────────────────────────────────────────────────────────────────────────
+const CFG = {
+  module       : 'Margin',
+  autoRefreshMs: 5 * 60 * 1000,   // 5 min auto-refresh
+};
+
+const F_STANDARD = {
+  destination : 'Cities_to_be_covered',
+  pax         : 'Total_Passanger_Travelling',
+  travelDate  : 'Travel_Date',
+  amount      : 'Quote_Value',
+  owner       : 'Owner',
+  createdTime : 'Created_Time',
+};
+const F_GIT = {
+  destination : 'Group_Depature',
+  pax         : 'Total_Passanger_Travelling',
+  travelDate  : 'Travel_Date',
+  amount      : 'Quote_Value',
+  owner       : 'Owner',
+  createdTime : 'Created_Time',
+};
+
+const AV_COLOURS = [
+  {bg:'#E1F5EE',txt:'#0F6E56',border:'#0F6E56'},
+  {bg:'#E6F1FB',txt:'#185FA5',border:'#185FA5'},
+  {bg:'#FAEEDA',txt:'#854F0B',border:'#854F0B'},
+  {bg:'#FBEAF0',txt:'#993556',border:'#993556'},
+  {bg:'#EEEDFE',txt:'#3C3489',border:'#3C3489'},
+  {bg:'#FAF0E6',txt:'#8B4513',border:'#8B4513'},
+  {bg:'#E0F7FA',txt:'#00695C',border:'#00695C'},
+  {bg:'#FFF3E0',txt:'#E65100',border:'#E65100'},
+];
+
+let knownIds    = new Set();
+let firstLoad   = true;
+let colourMap   = {};
+let colourIdx   = 0;
+let countdownId = null;
+let countdown   = CFG.autoRefreshMs / 1000;
+let celTimerId  = null;
+let celCountdown = 45;
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function tickClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+  document.getElementById('dateStr').textContent =
+    n.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'});
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ─── Auto-refresh countdown ───────────────────────────────────────────────────
+function startCountdown() {
+  clearInterval(countdownId);
+  countdown = CFG.autoRefreshMs / 1000;
+  countdownId = setInterval(() => {
+    countdown--;
+    const m = Math.floor(countdown / 60);
+    const s = countdown % 60;
+    document.getElementById('nextRefresh').textContent =
+      `Auto-refresh in ${m}:${String(s).padStart(2,'0')}`;
+    if (countdown <= 0) { clearInterval(countdownId); fetchData(); }
+  }, 1000);
+}
+
+// ─── Manual refresh button ────────────────────────────────────────────────────
+function triggerRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  setTimeout(() => btn.classList.remove('spinning'), 600);
+  fetchData();
+}
+
+// ─── Celebration overlay ──────────────────────────────────────────────────────
+// ⑦ Audio removed — AudioContext is blocked in sandboxed iframes without a
+//    direct user gesture on the audio element itself.
+
+function confetti() {
+  const cols = ['#16cf76','#185FA5','#FDC645','#f472b6','#a78bfa','#ffffff','#ff6b35','#00d2ff'];
+  const root = document.getElementById('widget-root');
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-p';
+    const size = 6 + Math.random() * 9;
+    // Use % offsets so confetti stays inside the widget iframe
+    el.style.cssText = `
+      left:${Math.random()*100}%;top:0;
+      width:${size}px;height:${size}px;
+      background:${cols[Math.floor(Math.random()*cols.length)]};
+      border-radius:${Math.random()>.5?'50%':'2px'};
+      animation-duration:${2+Math.random()*2.5}s;
+      animation-delay:${Math.random()*0.5}s;`;
+    root.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+
+function celebrate(ownerName, dest, amount, colour) {
+  const avEl = document.getElementById('celAvatar');
+  const ini = initials(ownerName);
+  avEl.style.background = colour ? colour.bg : '#16cf76';
+  avEl.style.color      = colour ? colour.txt : '#fff';
+  avEl.textContent = ini;
+
+  document.getElementById('celTitle').textContent  = `🎉 ${ownerName} just confirmed!`;
+  document.getElementById('celSub').textContent    = dest || '';
+  document.getElementById('celAmount').textContent = amount ? '₹' + fmtAmt(amount) : '';
+
+  const ov = document.getElementById('cel-overlay');
+  ov.classList.add('show');
+
+  // Staggered confetti bursts
+  [0,3000,6000,9500,13000,16500,20000,23500,27000,30500,34000,38000,42000]
+    .forEach(t => t === 0 ? confetti() : setTimeout(confetti, t));
+
+  if (celTimerId) clearInterval(celTimerId);
+  celCountdown = 45;
+  document.getElementById('celTimer').textContent = `Closing in ${celCountdown}s`;
+  celTimerId = setInterval(() => {
+    celCountdown--;
+    document.getElementById('celTimer').textContent = `Closing in ${celCountdown}s`;
+    if (celCountdown <= 0) {
+      clearInterval(celTimerId);
+      ov.classList.remove('show');
+    }
+  }, 1000);
+}
+
+// Allow clicking overlay to dismiss early
+document.getElementById('cel-overlay').addEventListener('click', () => {
+  clearInterval(celTimerId);
+  document.getElementById('cel-overlay').classList.remove('show');
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtAmt(v) { return Number(v).toLocaleString('en-IN',{maximumFractionDigits:0}); }
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return isNaN(d) ? s : d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'});
+}
+function fmtTime(s) {
+  if (!s) return {time:'—',when:''};
+  const d = new Date(s);
+  if (isNaN(d)) return {time:s,when:''};
+  const time = d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+  const today = new Date();
+  const when = d.toDateString()===today.toDateString()
+    ? 'Today'
+    : d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  return {time, when};
+}
+function initials(name) {
+  return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+function colourFor(id) {
+  if (!colourMap[id]) { colourMap[id] = AV_COLOURS[colourIdx % AV_COLOURS.length]; colourIdx++; }
+  return colourMap[id];
+}
+function monthRange() {
+  const n = new Date();
+  const s = new Date(n.getFullYear(), n.getMonth(), 1);
+  const e = new Date(n.getFullYear(), n.getMonth()+1, 0, 23, 59, 59);
+  const iso = d => d.toISOString().slice(0,19);
+  return {s: iso(s), e: iso(e)};
+}
+function isGIT(rec) {
+  const layout = rec['Layout'];
+  if (!layout) return false;
+  return (layout.name||layout.Name||'').toString().toUpperCase().includes('GIT');
+}
+
+// ─── Row renderer (no photo fetch — initials avatars only in widget sandbox) ─
+function renderRow(rec, isNew) {
+  const git  = isGIT(rec);
+  const F    = git ? F_GIT : F_STANDARD;
+  const owner   = rec[F.owner] || {};
+  const name    = owner.name || '—';
+  const destRaw = rec[F.destination];
+  const dest    = (destRaw && typeof destRaw==='object' ? destRaw.name : destRaw) || '—';
+  const amount  = rec[F.amount];
+  const pax     = rec[F.pax] || '—';
+  const td      = fmtDate(rec[F.travelDate]);
+  const ct      = fmtTime(rec[F.createdTime] || rec.Created_Time || rec.created_time);
+  const col     = colourFor(owner.id || name);
+  const ini     = initials(name);
+
+  return `
+    <div class="row ${isNew?'is-new':''}" data-id="${rec.id}" style="border-left-color:${col.border}">
+      <div class="av-fallback" style="background:${col.bg};color:${col.txt};border:2px solid ${col.border}">${ini}</div>
+      <div class="cell">
+        <div class="c-name" style="color:${col.txt}">${name}</div>
+        <div>${isNew?'<span class="new-tag">New</span>':''}${git?'<span class="git-tag">GIT</span>':''}</div>
+      </div>
+      <div class="cell"><div class="c-dest">📍 ${dest}</div></div>
+      <div class="cell"><div class="c-amount">₹${amount ? fmtAmt(amount) : '—'}</div></div>
+      <div class="cell"><div class="c-pax">👥 ${pax}</div></div>
+      <div class="cell"><div class="c-tdate">✈️ ${td}</div></div>
+      <div class="cell c-time">
+        <div class="c-time-main">${ct.time}</div>
+        <div class="c-time-date">${ct.when}</div>
+      </div>
+    </div>`;
+}
+
+// ─── Main data fetch — uses ZOHO.CRM.API (SDK auth, no token needed) ─────────
+async function fetchData() {
+  const spin = document.getElementById('spinner');
+  const msg  = document.getElementById('footerMsg');
+  spin.classList.add('on');
+  msg.textContent = 'Refreshing...';
+
+  const fields = [
+    'id','Name','Layout','Type_of_Service',
+    F_STANDARD.destination, F_GIT.destination,
+    F_STANDARD.pax, F_STANDARD.travelDate,
+    F_STANDARD.amount, F_STANDARD.owner,
+    F_STANDARD.createdTime,
+  ].filter((v,i,a) => a.indexOf(v)===i);
+
+  try {
+    // ⑧ ZOHO.CRM.API.getAllRecords — SDK handles OAuth transparently
+    const resp = await ZOHO.CRM.API.getAllRecords({
+      Entity       : CFG.module,
+      sort_by      : 'Created_Time',
+      sort_order   : 'desc',
+      per_page     : 50,
+      page         : 1,
+      fields       : fields,
+    });
+
+    const recs = (resp && resp.data) ? resp.data : [];
+
+    const {s, e}  = monthRange();
+    const sDate   = new Date(s);
+    const eDate   = new Date(e);
+
+    const filteredRecs = recs.filter(r => {
+      const ct = r[F_STANDARD.createdTime] || r.Created_Time || r.created_time;
+      if (!ct) return false;
+      const d = new Date(ct);
+      if (d < sDate || d > eDate) return false;
+      if (isGIT(r)) {
+        const destRaw = r[F_GIT.destination];
+        const dest = destRaw && typeof destRaw==='object' ? destRaw.name : destRaw;
+        return dest && dest.toString().trim() !== '';
+      } else {
+        const tos = (r['Type_of_Service'] || '').toString().trim();
+        return tos === 'International Holiday Package' || tos === 'Domestic Holiday Package';
+      }
+    });
+
+    const newIds = filteredRecs.filter(r => !knownIds.has(r.id)).map(r => r.id);
+    const totAmt = filteredRecs.reduce((a,r) => a + (Number(r[F_STANDARD.amount])||0), 0);
+    const totPax = filteredRecs.reduce((a,r) => a + (Number(r[F_STANDARD.pax])||0), 0);
+
+    document.getElementById('sTotal').textContent = filteredRecs.length || '—';
+    document.getElementById('sValue').textContent = filteredRecs.length ? '₹'+fmtAmt(totAmt) : '—';
+    document.getElementById('sPax').textContent   = totPax || '—';
+    document.getElementById('sRefresh').textContent =
+      new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+
+    const feed = document.getElementById('feed');
+    feed.innerHTML = filteredRecs.length
+      ? filteredRecs.map(r => renderRow(r, newIds.includes(r.id))).join('')
+      : `<div class="state-box"><div class="s-icon">📭</div><div>No confirmations this month yet.</div></div>`;
+
+    // Trigger celebration for first new record detected after initial load
+    if (!firstLoad && newIds.length) {
+      const n = filteredRecs.find(r => r.id === newIds[0]);
+      if (n) {
+        const git  = isGIT(n);
+        const F    = git ? F_GIT : F_STANDARD;
+        const owner = n[F.owner] || {};
+        const col   = colourFor(owner.id || owner.name);
+        const destRaw = n[F.destination];
+        const destVal = destRaw && typeof destRaw==='object' ? destRaw.name : destRaw;
+        celebrate(owner.name || 'Someone', destVal, n[F.amount], col);
+      }
+    }
+
+    filteredRecs.forEach(r => knownIds.add(r.id));
+    firstLoad = false;
+    msg.textContent = `Showing ${filteredRecs.length} confirmation${filteredRecs.length!==1?'s':''} this month`;
+
+  } catch (err) {
+    setErr('CRM API error — check widget permissions.');
+    console.error(err);
+  } finally {
+    spin.classList.remove('on');
+    startCountdown();
+  }
+}
+
+function setErr(txt) {
+  document.getElementById('feed').innerHTML =
+    `<div class="state-box"><div class="s-icon">⚠️</div><div>${txt}</div></div>`;
+  document.getElementById('footerMsg').textContent = txt;
+  document.getElementById('spinner').classList.remove('on');
+  startCountdown();
+}
+
+// ─── ⑨ Entry point: ZOHO.embeddedApp.init() + PageLoad ───────────────────────
+// All data fetching must start inside the PageLoad handler.
+// fetchData() is NOT called directly at the bottom of the script.
+ZOHO.embeddedApp.on("PageLoad", function(data) {
+  fetchData();
+});
+ZOHO.embeddedApp.init();
+</script>
+</body>
+</html>
