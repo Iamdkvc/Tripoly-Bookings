@@ -221,14 +221,29 @@ function startCountdown() {
     var s = countdown % 60;
     document.getElementById('nextRefresh').textContent = 'Auto-refresh in ' + m + ':' + String(s).padStart(2, '0');
     if (countdown <= 0) { clearInterval(countdownId); fetchData();
-fetchPhotos();
+fetchPhotos(false);
 
-function fetchPhotos() {
+function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
+      // Re-render rows to show photos if data already loaded
+      if (rerender) {
+        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
+        imgs.forEach(function(el) {
+          var uid = el.getAttribute('data-uid');
+          if (photoMap[uid]) {
+            var img = document.createElement('img');
+            img.src = photoMap[uid];
+            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
+            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
+            el.parentNode.insertBefore(img, el);
+            el.style.display = 'none';
+          }
+        });
+      }
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 } }
@@ -286,14 +301,29 @@ document.getElementById('cel-overlay').addEventListener('click', function() {
 });
 
 document.getElementById('refreshBtn').addEventListener('click', function() { fetchData();
-fetchPhotos();
+fetchPhotos(false);
 
-function fetchPhotos() {
+function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
+      // Re-render rows to show photos if data already loaded
+      if (rerender) {
+        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
+        imgs.forEach(function(el) {
+          var uid = el.getAttribute('data-uid');
+          if (photoMap[uid]) {
+            var img = document.createElement('img');
+            img.src = photoMap[uid];
+            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
+            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
+            el.parentNode.insertBefore(img, el);
+            el.style.display = 'none';
+          }
+        });
+      }
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 } });
@@ -305,7 +335,7 @@ document.getElementById('refreshPhotosBtn').addEventListener('click', function()
     .then(function(r) { return r.json(); })
     .then(function(d) {
       photoMap = {};
-      fetchPhotos();
+      fetchPhotos(false);
       btn.textContent = '✅ ' + d.count + ' photos refreshed';
       setTimeout(function() { btn.textContent = '🖼️ Refresh Photos'; btn.disabled = false; }, 3000);
     })
@@ -373,7 +403,7 @@ function renderRow(rec, isNew) {
   var ownerId = owner.id || '';
   var photoHtml = photoMap[ownerId]
     ? '<img src="' + photoMap[ownerId] + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + col.border + ';flex-shrink:0;" alt="' + ini + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"/><div class="av-fallback" style="display:none;background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>'
-    : '<div class="av-fallback" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
+    : '<div class="av-fallback" data-uid="' + ownerId + '" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
 
   return '<div class="row' + (isNew ? ' is-new' : '') + '" style="border-left-color:' + col.border + '">' +
     photoHtml +
@@ -436,6 +466,7 @@ function fetchData() {
       filtered.forEach(function(r) { knownIds.add(r.id); });
       firstLoad = false;
       msg.textContent = 'Showing ' + filtered.length + ' confirmation' + (filtered.length !== 1 ? 's' : '') + ' this month';
+      fetchPhotos(true);
     })
     .catch(function(err) {
       document.getElementById('feed').innerHTML = '<div class="state-box"><div class="s-icon">⚠️</div><div>Error: ' + err.message + '</div></div>';
@@ -448,14 +479,29 @@ function fetchData() {
 }
 
 fetchData();
-fetchPhotos();
+fetchPhotos(false);
 
-function fetchPhotos() {
+function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
+      // Re-render rows to show photos if data already loaded
+      if (rerender) {
+        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
+        imgs.forEach(function(el) {
+          var uid = el.getAttribute('data-uid');
+          if (photoMap[uid]) {
+            var img = document.createElement('img');
+            img.src = photoMap[uid];
+            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
+            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
+            el.parentNode.insertBefore(img, el);
+            el.style.display = 'none';
+          }
+        });
+      }
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 }
