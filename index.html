@@ -126,6 +126,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
         <span id="footerMsg">Connecting...</span>
       </div>
       <button class="test-btn" id="testBtn">🎉 Test Popup</button>
+      <button class="test-btn" id="refreshPhotosBtn" style="background:#0a7a46;margin-left:8px;">🖼️ Refresh Photos</button>
       <div style="font-size:12px;color:var(--muted);" id="nextRefresh"></div>
     </div>
   </div>
@@ -156,6 +157,7 @@ var AV_COLOURS = [
   {bg:'#FFF3E0',txt:'#E65100',border:'#E65100'},
 ];
 var knownIds = new Set();
+var photoMap = {};
 var firstLoad = true;
 var colourMap = {};
 var colourIdx = 0;
@@ -218,7 +220,18 @@ function startCountdown() {
     var m = Math.floor(countdown / 60);
     var s = countdown % 60;
     document.getElementById('nextRefresh').textContent = 'Auto-refresh in ' + m + ':' + String(s).padStart(2, '0');
-    if (countdown <= 0) { clearInterval(countdownId); fetchData(); }
+    if (countdown <= 0) { clearInterval(countdownId); fetchData();
+fetchPhotos();
+
+function fetchPhotos() {
+  fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
+      photoMap = json.photos || {};
+      console.log('Photos loaded:', Object.keys(photoMap).length);
+    })
+    .catch(function(e) { console.warn('Photo fetch failed:', e); });
+} }
   }, 1000);
 }
 
@@ -272,7 +285,36 @@ document.getElementById('cel-overlay').addEventListener('click', function() {
   stopSound();
 });
 
-document.getElementById('refreshBtn').addEventListener('click', function() { fetchData(); });
+document.getElementById('refreshBtn').addEventListener('click', function() { fetchData();
+fetchPhotos();
+
+function fetchPhotos() {
+  fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
+      photoMap = json.photos || {};
+      console.log('Photos loaded:', Object.keys(photoMap).length);
+    })
+    .catch(function(e) { console.warn('Photo fetch failed:', e); });
+} });
+document.getElementById('refreshPhotosBtn').addEventListener('click', function() {
+  var btn = document.getElementById('refreshPhotosBtn');
+  btn.textContent = '⏳ Refreshing...';
+  btn.disabled = true;
+  fetch(PROXY.replace('/api/confirmations', '/api/refresh-photos'), {method:'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      photoMap = {};
+      fetchPhotos();
+      btn.textContent = '✅ ' + d.count + ' photos refreshed';
+      setTimeout(function() { btn.textContent = '🖼️ Refresh Photos'; btn.disabled = false; }, 3000);
+    })
+    .catch(function() {
+      btn.textContent = '❌ Failed';
+      setTimeout(function() { btn.textContent = '🖼️ Refresh Photos'; btn.disabled = false; }, 3000);
+    });
+});
+
 document.getElementById('testBtn').addEventListener('click', function() {
   celebrate('Test User', 'Test Destination', 100000, AV_COLOURS[1]);
 });
@@ -328,8 +370,13 @@ function renderRow(rec, isNew) {
   var ini = initials(name);
   var showNew = isToday(rec['Created_Time']);
 
+  var ownerId = owner.id || '';
+  var photoHtml = photoMap[ownerId]
+    ? '<img src="' + photoMap[ownerId] + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + col.border + ';flex-shrink:0;" alt="' + ini + '" onerror="this.style.display='none';this.nextSibling.style.display='flex'"/><div class="av-fallback" style="display:none;background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>'
+    : '<div class="av-fallback" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
+
   return '<div class="row' + (isNew ? ' is-new' : '') + '" style="border-left-color:' + col.border + '">' +
-    '<div class="av-fallback" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>' +
+    photoHtml +
     '<div class="cell"><div class="c-name" style="color:' + col.txt + '">' + name + '</div>' +
     '<div>' + (showNew ? '<span class="new-tag">New</span>' : '') + (git ? '<span class="git-tag">GIT</span>' : '') + '</div></div>' +
     '<div class="cell"><div class="c-dest">📍 ' + dest + '</div></div>' +
@@ -401,6 +448,17 @@ function fetchData() {
 }
 
 fetchData();
+fetchPhotos();
+
+function fetchPhotos() {
+  fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
+      photoMap = json.photos || {};
+      console.log('Photos loaded:', Object.keys(photoMap).length);
+    })
+    .catch(function(e) { console.warn('Photo fetch failed:', e); });
+}
 </script>
 </body>
 </html>
