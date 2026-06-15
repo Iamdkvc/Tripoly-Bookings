@@ -372,7 +372,7 @@ function renderRow(rec, isNew) {
 
   var ownerId = owner.id || '';
   var photoHtml = photoMap[ownerId]
-    ? '<img src="' + photoMap[ownerId] + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + col.border + ';flex-shrink:0;" alt="' + ini + '" onerror="this.style.display='none';this.nextSibling.style.display='flex'"/><div class="av-fallback" style="display:none;background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>'
+    ? '<img src="' + photoMap[ownerId] + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + col.border + ';flex-shrink:0;" alt="' + ini + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"/><div class="av-fallback" style="display:none;background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>'
     : '<div class="av-fallback" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
 
   return '<div class="row' + (isNew ? ' is-new' : '') + '" style="border-left-color:' + col.border + '">' +
