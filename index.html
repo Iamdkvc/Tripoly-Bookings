@@ -223,27 +223,34 @@ function startCountdown() {
     if (countdown <= 0) { clearInterval(countdownId); fetchData();
 fetchPhotos(false);
 
+function applyPhotos() {
+  var avatars = document.querySelectorAll('.av-fallback[data-uid]');
+  avatars.forEach(function(el) {
+    var uid = el.getAttribute('data-uid');
+    var border = el.getAttribute('data-border') || '';
+    if (photoMap[uid] && !el.getAttribute('data-photo-applied')) {
+      var img = document.createElement('img');
+      img.src = photoMap[uid];
+      img.setAttribute('style', 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + border + ';flex-shrink:0;display:block;');
+      img.onerror = function() {
+        this.parentNode.removeChild(this);
+        el.style.display = 'flex';
+        el.setAttribute('data-photo-applied', '');
+      };
+      el.setAttribute('data-photo-applied', '1');
+      el.style.display = 'none';
+      el.parentNode.insertBefore(img, el);
+    }
+  });
+}
+
 function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
-      // Re-render rows to show photos if data already loaded
-      if (rerender) {
-        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
-        imgs.forEach(function(el) {
-          var uid = el.getAttribute('data-uid');
-          if (photoMap[uid]) {
-            var img = document.createElement('img');
-            img.src = photoMap[uid];
-            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
-            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
-            el.parentNode.insertBefore(img, el);
-            el.style.display = 'none';
-          }
-        });
-      }
+      applyPhotos();
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 } }
@@ -303,27 +310,34 @@ document.getElementById('cel-overlay').addEventListener('click', function() {
 document.getElementById('refreshBtn').addEventListener('click', function() { fetchData();
 fetchPhotos(false);
 
+function applyPhotos() {
+  var avatars = document.querySelectorAll('.av-fallback[data-uid]');
+  avatars.forEach(function(el) {
+    var uid = el.getAttribute('data-uid');
+    var border = el.getAttribute('data-border') || '';
+    if (photoMap[uid] && !el.getAttribute('data-photo-applied')) {
+      var img = document.createElement('img');
+      img.src = photoMap[uid];
+      img.setAttribute('style', 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + border + ';flex-shrink:0;display:block;');
+      img.onerror = function() {
+        this.parentNode.removeChild(this);
+        el.style.display = 'flex';
+        el.setAttribute('data-photo-applied', '');
+      };
+      el.setAttribute('data-photo-applied', '1');
+      el.style.display = 'none';
+      el.parentNode.insertBefore(img, el);
+    }
+  });
+}
+
 function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
-      // Re-render rows to show photos if data already loaded
-      if (rerender) {
-        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
-        imgs.forEach(function(el) {
-          var uid = el.getAttribute('data-uid');
-          if (photoMap[uid]) {
-            var img = document.createElement('img');
-            img.src = photoMap[uid];
-            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
-            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
-            el.parentNode.insertBefore(img, el);
-            el.style.display = 'none';
-          }
-        });
-      }
+      applyPhotos();
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 } });
@@ -401,9 +415,7 @@ function renderRow(rec, isNew) {
   var showNew = isToday(rec['Created_Time']);
 
   var ownerId = owner.id || '';
-  var photoHtml = photoMap[ownerId]
-    ? '<img src="' + photoMap[ownerId] + '" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + col.border + ';flex-shrink:0;" alt="' + ini + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"/><div class="av-fallback" style="display:none;background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>'
-    : '<div class="av-fallback" data-uid="' + ownerId + '" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
+  var photoHtml = '<div class="av-fallback" data-uid="' + ownerId + '" data-border="' + col.border + '" style="background:' + col.bg + ';color:' + col.txt + ';border:2px solid ' + col.border + '">' + ini + '</div>';
 
   return '<div class="row' + (isNew ? ' is-new' : '') + '" style="border-left-color:' + col.border + '">' +
     photoHtml +
@@ -466,7 +478,7 @@ function fetchData() {
       filtered.forEach(function(r) { knownIds.add(r.id); });
       firstLoad = false;
       msg.textContent = 'Showing ' + filtered.length + ' confirmation' + (filtered.length !== 1 ? 's' : '') + ' this month';
-      fetchPhotos(true);
+      applyPhotos();
     })
     .catch(function(err) {
       document.getElementById('feed').innerHTML = '<div class="state-box"><div class="s-icon">⚠️</div><div>Error: ' + err.message + '</div></div>';
@@ -481,27 +493,34 @@ function fetchData() {
 fetchData();
 fetchPhotos(false);
 
+function applyPhotos() {
+  var avatars = document.querySelectorAll('.av-fallback[data-uid]');
+  avatars.forEach(function(el) {
+    var uid = el.getAttribute('data-uid');
+    var border = el.getAttribute('data-border') || '';
+    if (photoMap[uid] && !el.getAttribute('data-photo-applied')) {
+      var img = document.createElement('img');
+      img.src = photoMap[uid];
+      img.setAttribute('style', 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ' + border + ';flex-shrink:0;display:block;');
+      img.onerror = function() {
+        this.parentNode.removeChild(this);
+        el.style.display = 'flex';
+        el.setAttribute('data-photo-applied', '');
+      };
+      el.setAttribute('data-photo-applied', '1');
+      el.style.display = 'none';
+      el.parentNode.insertBefore(img, el);
+    }
+  });
+}
+
 function fetchPhotos(rerender) {
   fetch(PROXY.replace('/api/confirmations', '/api/user-photos'))
     .then(function(res) { return res.json(); })
     .then(function(json) {
       photoMap = json.photos || {};
       console.log('Photos loaded:', Object.keys(photoMap).length);
-      // Re-render rows to show photos if data already loaded
-      if (rerender) {
-        var imgs = document.querySelectorAll('.av-fallback[data-uid]');
-        imgs.forEach(function(el) {
-          var uid = el.getAttribute('data-uid');
-          if (photoMap[uid]) {
-            var img = document.createElement('img');
-            img.src = photoMap[uid];
-            img.style.cssText = 'width:44px;height:44px;border-radius:50%;object-fit:cover;border:' + el.style.border + ';flex-shrink:0;';
-            img.onerror = function() { this.style.display='none'; el.style.display='flex'; };
-            el.parentNode.insertBefore(img, el);
-            el.style.display = 'none';
-          }
-        });
-      }
+      applyPhotos();
     })
     .catch(function(e) { console.warn('Photo fetch failed:', e); });
 }
