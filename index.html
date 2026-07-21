@@ -25,7 +25,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
 .clock-block{text-align:right;}
 .clock{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#fff;line-height:1;}
 .date-str{font-size:11px;color:rgba(255,255,255,0.6);margin-top:3px;}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex-shrink:0;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex-shrink:0;}
 .stat-card{border-radius:14px;padding:20px 24px;display:flex;align-items:center;gap:20px;min-height:100px;}
 .stat-card:nth-child(1){background:linear-gradient(135deg,#0a7a46,#16cf76);color:#fff;}
 .stat-card:nth-child(2){background:linear-gradient(135deg,#185FA5,#378ADD);color:#fff;}
@@ -110,12 +110,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter'
     <div class="tabs">
       <button class="tab-btn active" id="tabCurrent" onclick="switchTab('current')">📅 Current Month</button>
       <button class="tab-btn" id="tabLast" onclick="switchTab('last')">🗂️ Last Month</button>
-      <button class="tab-btn" id="tabFY" disabled>📊 FY 2026–27</button>
+      <button class="tab-btn" id="tabFY" onclick="switchTab('fy')">📊 FY 2026–27</button>
     </div>
     <div class="stats">
       <div class="stat-card"><div class="stat-icon">🗓️</div><div class="stat-text"><div class="stat-label">Confirmations</div><div class="stat-value" id="sTotal">—</div></div></div>
-      
       <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-text"><div class="stat-label">Total Pax</div><div class="stat-value" id="sPax">—</div></div></div>
+      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-text"><div class="stat-label">Total Value</div><div class="stat-value" id="sValue">—</div></div></div>
       <div class="stat-card"><div class="stat-icon">🔄</div><div class="stat-text"><div class="stat-label">Last Refreshed</div><div class="stat-value" id="sRefresh">—</div></div></div>
     </div>
     <div class="table-head">
@@ -309,12 +309,17 @@ function monthRange() {
     var e = new Date(n.getFullYear(), n.getMonth(), 0, 23, 59, 59);
     return {s: s, e: e};
   }
+  if (activePeriod === 'fy') {
+    var fyY = n.getMonth() >= 3 ? n.getFullYear() : n.getFullYear() - 1;
+    return {s: new Date(fyY, 3, 1), e: new Date(fyY + 1, 2, 31, 23, 59, 59)};
+  }
   return {s: new Date(n.getFullYear(), n.getMonth(), 1), e: new Date(n.getFullYear(), n.getMonth()+1, 0, 23, 59, 59)};
 }
 function switchTab(period) {
   activePeriod = period;
   document.getElementById('tabCurrent').classList.toggle('active', period === 'current');
   document.getElementById('tabLast').classList.toggle('active', period === 'last');
+  document.getElementById('tabFY').classList.toggle('active', period === 'fy');
   firstLoad = true;
   fetchData();
 }
@@ -390,6 +395,7 @@ function fetchData() {
       var totPax = filtered.reduce(function(a, r) { return a + (Number(r['Total_Passanger_Travelling']) || 0); }, 0);
       document.getElementById('sTotal').textContent = filtered.length || '—';
       document.getElementById('sPax').textContent = totPax || '—';
+      document.getElementById('sValue').textContent = totAmt ? '₹' + (totAmt >= 10000000 ? (totAmt/10000000).toFixed(2) + 'Cr' : totAmt >= 100000 ? (totAmt/100000).toFixed(2) + 'L' : totAmt.toLocaleString('en-IN')) : '—';
       document.getElementById('sRefresh').textContent = new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true});
       var feed = document.getElementById('feed');
       feed.innerHTML = filtered.length
@@ -415,7 +421,7 @@ function fetchData() {
       }
       filtered.forEach(function(r) { knownIds.add(r.id); });
       firstLoad = false;
-      msg.textContent = 'Showing ' + filtered.length + ' confirmation' + (filtered.length !== 1 ? 's' : '') + ' — ' + (activePeriod === 'last' ? 'last month' : 'this month');
+      msg.textContent = 'Showing ' + filtered.length + ' confirmation' + (filtered.length !== 1 ? 's' : '') + ' — ' + (activePeriod === 'last' ? 'last month' : activePeriod === 'fy' ? 'FY 2026–27' : 'this month');
     })
     .catch(function(err) {
       document.getElementById('feed').innerHTML = '<div class="state-box"><div class="s-icon">⚠️</div><div>Error: ' + err.message + '</div></div>';
