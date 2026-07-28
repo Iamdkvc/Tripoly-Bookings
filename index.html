@@ -449,12 +449,15 @@ function fetchData(){
         var ct=r['Created_Time'];if(!ct)return false;
         var d=new Date(ct);if(d<range.s||d>range.e)return false;
         if(isGIT(r)){
+          var gitStatus=(r['GIT_Status']||'').toString().trim();
+          if(gitStatus==='Booking Cancelled') return false;
           var destRaw=r['Group_Depature'],destId=destRaw&&typeof destRaw==='object'?destRaw.id:null;
           var dest=destId?(groupDepartureMap[destId]||''):(destRaw&&typeof destRaw==='object'?destRaw.name:destRaw);
           return dest&&dest.toString().trim()!=='';
         }else{
           var tos=(r['Type_of_Service']||'').toString().trim();
-          return tos==='International Holiday Package'||tos==='Domestic Holiday Package';
+          var status=(r['Status']||'').toString().trim();
+          return (tos==='International Holiday Package'||tos==='Domestic Holiday Package')&&status!=='Booking Cancelled';
         }
       });
       var newIds=filtered.filter(function(r){return!knownIds.has(r.id);}).map(function(r){return r.id;});
