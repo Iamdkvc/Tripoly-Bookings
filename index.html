@@ -84,7 +84,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .b-name{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .b-tag{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.8px;padding:1px 6px;border-radius:3px;text-transform:uppercase;margin-top:2px;}
 .b-tag.new{background:var(--orange-lt);color:var(--orange);}
-.b-tag.git{background:#E8F1FB;color:#185FA5;margin-left:4px;}
+.b-tag.git{background:#FEF3C7;color:#B87D00;margin-left:4px;}
 .b-dest{font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .b-dest-sub{font-size:11px;color:var(--ink-light);margin-top:1px;}
 .b-value{font-family:'Inter Tight',sans-serif;font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;}
@@ -167,8 +167,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .perf-period-title small{font-family:'Inter',sans-serif;font-size:11px;font-weight:400;color:var(--ink-light);margin-left:6px;}
 .perf-team-card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;overflow:hidden;}
 .perf-team-header{padding:14px 20px 12px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px;}
-.perf-team-icon{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.perf-team-icon svg{width:20px;height:20px;}
+
 .perf-team-name{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;color:var(--ink);}
 .perf-team-meta{font-size:11px;color:var(--ink-light);margin-top:2px;}
 .perf-donut-wrap{position:relative;width:52px;height:52px;flex-shrink:0;margin-left:auto;}
@@ -257,7 +256,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 <div class="tabs">
   <button class="tab-btn active" id="tabCurrent" onclick="switchTab('current')">Current Month</button>
   <button class="tab-btn" id="tabLast" onclick="switchTab('last')">Last Month</button>
-  <button class="tab-btn" id="tabFY" onclick="switchTab('fy')">FY 2026–27</button>
+  <button class="tab-btn" id="tabFY" onclick="switchTab('fy')" style="display:none;">FY 2026–27</button>
   <button class="tab-btn" id="tabPerf" onclick="switchTab('performance')">Performance</button>
 </div>
 
@@ -327,7 +326,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 </div>
 
 <!-- ══ FY 2026–27 VIEW ══ -->
-<div class="view" id="viewFY">
+<div class="view" id="viewFY" style="display:none !important;">
   <div class="fy-kpi kpi-strip">
     <div class="kpi-card">
       <div class="kpi-label">YTD PAX</div>
@@ -694,16 +693,27 @@ function fetchData(){
       filtered.forEach(function(r){knownIds.add(r.id);});
       firstLoad=false;
       msg.textContent='Showing '+filtered.length+' confirmation'+(filtered.length!==1?'s':'')+' · '+(activePeriod==='last'?'Last month':'This month');
-      // Build leaderboard from pax per owner
+      // Build leaderboard — fetch real targets then match by owner ID
       var paxMap={};
-      var targetMap={};
       filtered.forEach(function(r){
         var oid=(r['Owner']||{}).id||'';
         var name=getOwnerName(r);
-        if(!paxMap[oid])paxMap[oid]={name:name,achieved:0,target:20};
+        if(!paxMap[oid])paxMap[oid]={name:name,achieved:0,target:0};
         paxMap[oid].achieved+=(Number(r['Total_Passanger_Travelling'])||0);
       });
-      renderRank(Object.values(paxMap));
+      var monthKey=activePeriod==='last'?
+        (function(){var n=new Date();return new Date(n.getFullYear(),n.getMonth()-1,1).getFullYear()+'-'+String(new Date(n.getFullYear(),n.getMonth()-1,1).getMonth()+1).padStart(2,'0');}()):
+        (new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0'));
+      fetch(PROXY_BASE+'/api/targets?month='+monthKey)
+        .then(function(r){return r.json();})
+        .then(function(tdata){
+          (tdata.data||[]).forEach(function(t){
+            var mid=t.Team_Member&&t.Team_Member.id;
+            if(mid&&paxMap[mid])paxMap[mid].target=Number(t.Target_PAX)||0;
+          });
+          renderRank(Object.values(paxMap));
+        })
+        .catch(function(){renderRank(Object.values(paxMap));});
     })
     .catch(function(err){
       document.getElementById('feed').innerHTML='<div class="state-box"><div style="font-size:32px;">⚠️</div><div>Error: '+err.message+'</div></div>';
@@ -873,16 +883,7 @@ function fetchPerformanceData(monthKey){
     document.getElementById('pkOnTrack').innerHTML=onTrack+' <span style="font-size:14px;color:var(--ink-light);font-weight:500">/ '+members.length+'</span>';
     var label=perfMonths.find(function(m){return m.key===monthKey;});
     document.getElementById('perfPeriodLabel').textContent=label?label.label:monthKey;
-    // Team icons
-    var teamIcons={
-      'FD':'<svg viewBox="0 0 24 24" fill="none"><path d="M21 16L13 8V3.5C13 2.67 12.33 2 11.5 2S10 2.67 10 3.5V8L2 16v2l8-2.5V20l-2 1.5V23l3.5-1 3.5 1v-1.5L13 20v-4.5l8 2.5v-2z" fill="#185FA5"/></svg>',
-      'FIT':'<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#1A7A4A" stroke-width="2"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="#1A7A4A"/><circle cx="12" cy="12" r="2" fill="#fff"/></svg>',
-      'Surat Branch':'<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="8" height="14" rx="1" fill="#B87D00"/><rect x="13" y="3" width="8" height="18" rx="1" fill="#F0A500"/><rect x="5" y="10" width="2" height="2" fill="#fff" opacity=".9"/><rect x="9" y="10" width="2" height="2" fill="#fff" opacity=".9"/><rect x="15" y="6" width="2" height="2" fill="#fff" opacity=".9"/><rect x="19" y="6" width="2" height="2" fill="#fff" opacity=".9"/><line x1="3" y1="21" x2="21" y2="21" stroke="#B87D00" stroke-width="1.5"/></svg>',
-      'Nashik Branch':'<svg viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#3C3489"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>',
-      'Retention':'<svg viewBox="0 0 24 24" fill="none"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8h-2c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#E8613A"/><circle cx="12" cy="12" r="2" fill="#C0392B"/></svg>'
-    };
-    var teamIconBg={'FD':'#EFF6FF','FIT':'#F0FDF4','Surat Branch':'#FFF7ED','Nashik Branch':'#F5F3FF','Retention':'#FDF1EC'};
-    var teamDonutColor={'FD':'#185FA5','FIT':'#1A7A4A','Surat Branch':'#F0A500','Nashik Branch':'#C0392B','Retention':'#E8613A'};
+    var teamDonutColor={'FD':'#185FA5','FIT':'#1A7A4A','Surat Branch':'#B87D00','Nashik Branch':'#C0392B','Retention':'#E8613A'};
     var teamOrder=['FD','FIT','Surat Branch','Nashik Branch','Retention'];
     var teamGroups={};
     teamOrder.forEach(function(t){teamGroups[t]=[];});
@@ -898,7 +899,6 @@ function fetchPerformanceData(monthKey){
       var offset=circ*(1-Math.min(tPct,100)/100);
       html+='<div class="perf-team-card">';
       html+='<div class="perf-team-header">';
-      html+='<div class="perf-team-icon" style="background:'+teamIconBg[teamName]+'">'+(teamIcons[teamName]||'')+'</div>';
       html+='<div style="flex:1;"><div class="perf-team-name">'+teamName+'</div><div class="perf-team-meta">'+teamMembers.length+' member'+(teamMembers.length>1?'s':'')+' · Target '+tTarget+' PAX · Achieved '+tAchieved+' PAX</div></div>';
       html+='<div class="perf-donut-wrap"><svg width="52" height="52" viewBox="0 0 54 54"><circle cx="27" cy="27" r="21" fill="none" stroke="var(--rule)" stroke-width="6"/><circle cx="27" cy="27" r="21" fill="none" stroke="'+(teamDonutColor[teamName]||'#185FA5')+'" stroke-width="6" stroke-dasharray="131.9" stroke-dashoffset="'+offset.toFixed(1)+'" stroke-linecap="round"/></svg><div class="perf-donut-center">'+tPct+'%</div></div>';
       html+='</div>';
