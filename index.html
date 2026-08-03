@@ -87,7 +87,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .b-tag.git{background:#FEF3C7;color:#B87D00;margin-left:4px;}
 .b-dest{font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .b-dest-sub{font-size:11px;color:var(--ink-light);margin-top:1px;}
-.b-value{font-family:'Inter Tight',sans-serif;font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;}
+.b-value{font-family:'Inter Tight',sans-serif;font-size:15px;font-weight:700;color:#1A7A4A;white-space:nowrap;}
 .b-pax{font-size:13px;color:var(--ink-mid);text-align:center;}
 .b-tdate{font-size:12px;color:var(--ink-mid);}
 .b-time{text-align:right;}
@@ -988,7 +988,7 @@ function fetchPerformanceData(monthKey){
               if(tlMember.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
               else if(tlMember.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
               else if(tlMember.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
-              else if(tlMember.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Let's Go!';}
+              else if(tlMember.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText="Let's Go!";}
               else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
               html+='<div class="perf-member-row">';
               html+='<div class="perf-member-name" style="font-weight:700;">'+tlMember.name+'</div>';
@@ -1014,7 +1014,7 @@ function fetchPerformanceData(monthKey){
             if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
             else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
             else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
-            else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Let's Go!';}
+            else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText="Let's Go!";}
             else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
             html+='<div class="perf-member-row">';
             html+='<div class="perf-member-name">'+m.name+'</div>';
@@ -1038,7 +1038,7 @@ function fetchPerformanceData(monthKey){
               if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
               else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
               else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
-              else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Let's Go!';}
+              else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText="Let's Go!";}
               else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
               html+='<div class="perf-member-row">';
               html+='<div class="perf-member-name">'+m.name+'</div>';
@@ -1059,8 +1059,11 @@ function fetchPerformanceData(monthKey){
           html+='</div>';
         }
       } else {
-        // Surat Branch, Nashik Branch, Retention — no TL grouping, direct members
+        // Surat Branch, Nashik Branch, Retention — green team name header, direct members
         html+='<div class="perf-tl-group">';
+        var dtTarget=teamMembers.filter(function(m){return m.hasTarget;}).reduce(function(a,m){return a+m.target;},0);
+        var dtAchieved=teamMembers.reduce(function(a,m){return a+m.achieved;},0);
+        html+='<div class="perf-tl-label-green"><span>'+teamName+'</span><span class="tl-stats">Target '+dtTarget+' PAX &nbsp;·&nbsp; <span style="color:#1A7A4A;font-weight:700;">'+dtAchieved+' PAX achieved</span></span></div>';
         teamMembers.forEach(function(m){
           if(m.hasTarget){
             var barClass,pctClass,badgeClass,badgeText;
@@ -1068,7 +1071,7 @@ function fetchPerformanceData(monthKey){
             if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
             else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
             else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
-            else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Let's Go!';}
+            else if(m.achieved===0){barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText="Let's Go!";}
             else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
             html+='<div class="perf-member-row">';
             html+='<div class="perf-member-name">'+m.name+'</div>';
