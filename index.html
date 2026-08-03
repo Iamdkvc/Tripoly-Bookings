@@ -693,27 +693,31 @@ function fetchData(){
       filtered.forEach(function(r){knownIds.add(r.id);});
       firstLoad=false;
       msg.textContent='Showing '+filtered.length+' confirmation'+(filtered.length!==1?'s':'')+' · '+(activePeriod==='last'?'Last month':'This month');
-      // Build leaderboard — fetch real targets then match by owner ID
-      var paxMap={};
-      filtered.forEach(function(r){
-        var oid=(r['Owner']||{}).id||'';
-        var name=getOwnerName(r);
-        if(!paxMap[oid])paxMap[oid]={name:name,achieved:0,target:0};
-        paxMap[oid].achieved+=(Number(r['Total_Passanger_Travelling'])||0);
-      });
-      var monthKey=activePeriod==='last'?
+      // Build leaderboard — use /api/achievements as source of truth
+      var lbMonthKey=activePeriod==='last'?
         (function(){var n=new Date();return new Date(n.getFullYear(),n.getMonth()-1,1).getFullYear()+'-'+String(new Date(n.getFullYear(),n.getMonth()-1,1).getMonth()+1).padStart(2,'0');}()):
         (new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0'));
-      fetch(PROXY_BASE+'/api/targets?month='+monthKey)
-        .then(function(r){return r.json();})
-        .then(function(tdata){
-          (tdata.data||[]).forEach(function(t){
-            var mid=t.Team_Member&&t.Team_Member.id;
-            if(mid&&paxMap[mid])paxMap[mid].target=Number(t.Target_PAX)||0;
-          });
-          renderRank(Object.values(paxMap));
-        })
-        .catch(function(){renderRank(Object.values(paxMap));});
+      Promise.all([
+        fetch(PROXY_BASE+'/api/achievements?month='+lbMonthKey).then(function(r){return r.json();}),
+        fetch(PROXY_BASE+'/api/targets?month='+lbMonthKey).then(function(r){return r.json();})
+      ]).then(function(lbResults){
+        var lbAch=lbResults[0].data||[];
+        var lbTgt=lbResults[1].data||[];
+        var tgtMap={};
+        lbTgt.forEach(function(t){
+          var mid=t.Team_Member&&t.Team_Member.id;
+          if(mid)tgtMap[mid]=Number(t.Target_PAX)||0;
+        });
+        var paxMap={};
+        lbAch.forEach(function(a){
+          var mid=a.Team_Member&&a.Team_Member.id;
+          if(!mid)return;
+          var name=userMap[mid]||mid;
+          if(!paxMap[mid])paxMap[mid]={name:name,achieved:0,target:tgtMap[mid]||0};
+          paxMap[mid].achieved+=(Number(a.PAX)||0);
+        });
+        renderRank(Object.values(paxMap));
+      }).catch(function(){renderRank([]);});
     })
     .catch(function(err){
       document.getElementById('feed').innerHTML='<div class="state-box"><div style="font-size:32px;">⚠️</div><div>Error: '+err.message+'</div></div>';
@@ -848,91 +852,229 @@ function fetchPerformanceData(monthKey){
   if(!monthKey)return;
   document.getElementById('footerMsg').textContent='Loading performance data...';
   document.getElementById('perfPeriodLabel').textContent=monthKey;
+
+  // Hardcoded TL IDs for FD and FIT only
+  var TL_IDS={
+    'FD':['287659000007898377','287659000001185001'], // Aditee, Meghana
+    'FIT':['287659000010218277']                      // Vishal
+  };
+  // TL display names (resolved from userMap at render time)
+  var TL_ORDER={
+    'FD':['287659000007898377','287659000001185001'],
+    'FIT':['287659000010218277']
+  };
+
   Promise.all([
     fetch(PROXY_BASE+'/api/targets?month='+monthKey).then(function(r){return r.json();}),
     fetch(PROXY_BASE+'/api/achievements?month='+monthKey).then(function(r){return r.json();})
   ]).then(function(results){
     var targets=results[0].data||[];
     var achievements=results[1].data||[];
+
+    // Build achievement map: member id -> total PAX
     var achMap={};
     achievements.forEach(function(a){
       var mid=a.Team_Member&&a.Team_Member.id;
       if(!mid)return;
       achMap[mid]=(achMap[mid]||0)+(Number(a.PAX)||0);
     });
+
+    // Build target members list
+    var targetIds=new Set();
     var members=targets.map(function(t){
       var mid=t.Team_Member&&t.Team_Member.id;
       var tlid=t.Team_Lead&&t.Team_Lead.id;
       var achieved=achMap[mid]||0;
       var target=Number(t.Target_PAX)||0;
       var pct=target>0?Math.round((achieved/target)*100):0;
-      return{id:mid,name:userMap[mid]||mid||'Unknown',tlId:tlid,tlName:userMap[tlid]||'',team:t.Team||'',target:target,achieved:achieved,pct:pct};
+      if(mid)targetIds.add(mid);
+      return{id:mid,name:userMap[mid]||mid||'Unknown',tlId:tlid,tlName:userMap[tlid]||'',team:t.Team||'',target:target,achieved:achieved,pct:pct,hasTarget:true};
     });
+
+    // Find achievement-only members (no target) — Change 2
+    // Determine team from achievements Team field
+    var achOnlyMap={};
+    achievements.forEach(function(a){
+      var mid=a.Team_Member&&a.Team_Member.id;
+      if(!mid||targetIds.has(mid))return;
+      if(!achOnlyMap[mid]){
+        achOnlyMap[mid]={
+          id:mid,
+          name:userMap[mid]||mid,
+          team:a.Team||'',
+          achieved:0,
+          target:0,
+          pct:0,
+          hasTarget:false,
+          tlId:null,
+          tlName:''
+        };
+      }
+      achOnlyMap[mid].achieved+=(Number(a.PAX)||0);
+    });
+    // Merge achievement-only members into members array
+    Object.values(achOnlyMap).forEach(function(m){members.push(m);});
+
     // KPI — exclude Retention
-    var nonRet=members.filter(function(m){return m.team!=='Retention';});
+    var nonRet=members.filter(function(m){return m.team!=='Retention'&&m.hasTarget;});
     var totalTarget=nonRet.reduce(function(a,m){return a+m.target;},0);
     var totalAchieved=nonRet.reduce(function(a,m){return a+m.achieved;},0);
     var overallPct=totalTarget>0?Math.round((totalAchieved/totalTarget)*100):0;
-    var onTrack=members.filter(function(m){return m.pct>=50;}).length;
+    var onTrack=members.filter(function(m){return m.hasTarget&&m.pct>=50;}).length;
     document.getElementById('pkTotal').textContent=totalTarget;
     document.getElementById('pkTotalSub').textContent='Across '+nonRet.length+' members · '+monthKey;
     document.getElementById('pkAchieved').textContent=totalAchieved;
     document.getElementById('pkAchievedSub').textContent=monthKey;
     document.getElementById('pkProgress').textContent=overallPct+'%';
     document.getElementById('pkProgressSub').textContent='Target: '+totalTarget+' PAX';
-    document.getElementById('pkOnTrack').innerHTML=onTrack+' <span style="font-size:14px;color:var(--ink-light);font-weight:500">/ '+members.length+'</span>';
+    document.getElementById('pkOnTrack').innerHTML=onTrack+' <span style="font-size:14px;color:var(--ink-light);font-weight:500">/ '+members.filter(function(m){return m.hasTarget;}).length+'</span>';
     var label=perfMonths.find(function(m){return m.key===monthKey;});
     document.getElementById('perfPeriodLabel').textContent=label?label.label:monthKey;
+
     var teamDonutColor={'FD':'#185FA5','FIT':'#1A7A4A','Surat Branch':'#B87D00','Nashik Branch':'#C0392B','Retention':'#E8613A'};
     var teamOrder=['FD','FIT','Surat Branch','Nashik Branch','Retention'];
     var teamGroups={};
     teamOrder.forEach(function(t){teamGroups[t]=[];});
     members.forEach(function(m){if(teamGroups[m.team]!==undefined)teamGroups[m.team].push(m);});
+
     var html='';
     teamOrder.forEach(function(teamName){
       var teamMembers=teamGroups[teamName];
       if(!teamMembers||teamMembers.length===0)return;
-      var tTarget=teamMembers.reduce(function(a,m){return a+m.target;},0);
+
+      // Team totals from target members only
+      var tTarget=teamMembers.filter(function(m){return m.hasTarget;}).reduce(function(a,m){return a+m.target;},0);
       var tAchieved=teamMembers.reduce(function(a,m){return a+m.achieved;},0);
       var tPct=tTarget>0?Math.round((tAchieved/tTarget)*100):0;
       var circ=131.9;
       var offset=circ*(1-Math.min(tPct,100)/100);
+
       html+='<div class="perf-team-card">';
       html+='<div class="perf-team-header">';
       html+='<div style="flex:1;"><div class="perf-team-name">'+teamName+'</div><div class="perf-team-meta">'+teamMembers.length+' member'+(teamMembers.length>1?'s':'')+' · Target '+tTarget+' PAX · Achieved '+tAchieved+' PAX</div></div>';
       html+='<div class="perf-donut-wrap"><svg width="52" height="52" viewBox="0 0 54 54"><circle cx="27" cy="27" r="21" fill="none" stroke="var(--rule)" stroke-width="6"/><circle cx="27" cy="27" r="21" fill="none" stroke="'+(teamDonutColor[teamName]||'#185FA5')+'" stroke-width="6" stroke-dasharray="131.9" stroke-dashoffset="'+offset.toFixed(1)+'" stroke-linecap="round"/></svg><div class="perf-donut-center">'+tPct+'%</div></div>';
       html+='</div>';
-      // Group by TL
-      var tlGroups={};
-      teamMembers.forEach(function(m){
-        var key=m.tlId||'direct';
-        if(!tlGroups[key])tlGroups[key]={tlName:m.tlName||teamName,members:[]};
-        tlGroups[key].members.push(m);
-      });
-      Object.keys(tlGroups).forEach(function(tlKey){
-        var grp=tlGroups[tlKey];
-        html+='<div class="perf-tl-group">';
-        // Only show TL label if it's meaningful (FD/FIT have named TLs)
-        if(tlKey!=='direct'&&grp.tlName&&grp.tlName!==teamName){
-          html+='<div class="perf-tl-label">Under '+grp.tlName+'</div>';
-        }
-        grp.members.forEach(function(m){
-          var barClass,pctClass,badgeClass,badgeText;
-          var pctCapped=Math.min(m.pct,100);
-          if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
-          else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
-          else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
-          else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Push Hard';}
-          html+='<div class="perf-member-row">';
-          html+='<div class="perf-member-name">'+m.name+'</div>';
-          html+='<div class="perf-bar-track"><div class="perf-bar-fill '+barClass+'" style="width:'+pctCapped+'%"></div></div>';
-          html+='<div class="perf-pct '+pctClass+'">'+m.pct+'%</div>';
-          html+='<div class="perf-pax"><strong>'+m.achieved+'</strong> / '+m.target+' PAX</div>';
-          html+='<span class="perf-badge '+badgeClass+'">'+badgeText+'</span>';
+
+      // Change 3: FD and FIT use hardcoded TL grouping, others go direct
+      var tlIds=TL_IDS[teamName]||null;
+      if(tlIds){
+        // Render TL groups in defined order
+        tlIds.forEach(function(tlId){
+          var tlName=userMap[tlId]||tlId;
+          // TL themselves (achievement-only, no target)
+          var tlMember=teamMembers.find(function(m){return m.id===tlId;});
+          // Members under this TL
+          var underTL=teamMembers.filter(function(m){return m.id!==tlId&&m.tlId===tlId;});
+          // Also catch members whose tlId points to Anuj but belong to this team under this TL
+          // For FIT: Vishal is the TL, his own record has tlId=Anuj — handled by tlMember above
+          if(!tlMember&&underTL.length===0)return;
+          html+='<div class="perf-tl-group">';
+          html+='<div class="perf-tl-label">'+tlName+'</div>';
+          // Show TL row first if they have achievements (no target)
+          if(tlMember){
+            if(tlMember.hasTarget){
+              // TL has a target — show full member row
+              var barClass,pctClass,badgeClass,badgeText;
+              var pctCapped=Math.min(tlMember.pct,100);
+              if(tlMember.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
+              else if(tlMember.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
+              else if(tlMember.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
+              else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
+              html+='<div class="perf-member-row">';
+              html+='<div class="perf-member-name" style="font-weight:700;">'+tlMember.name+'</div>';
+              html+='<div class="perf-bar-track"><div class="perf-bar-fill '+barClass+'" style="width:'+pctCapped+'%"></div></div>';
+              html+='<div class="perf-pct '+pctClass+'">'+tlMember.pct+'%</div>';
+              html+='<div class="perf-pax"><strong>'+tlMember.achieved+'</strong> / '+tlMember.target+' PAX</div>';
+              html+='<span class="perf-badge '+badgeClass+'">'+badgeText+'</span>';
+              html+='</div>';
+            } else if(tlMember.achieved>0){
+              // TL has no target but has achievements — show name + PAX only
+              html+='<div class="perf-member-row">';
+              html+='<div class="perf-member-name" style="font-weight:700;color:var(--ink-mid);">'+tlMember.name+'</div>';
+              html+='<div></div><div></div>';
+              html+='<div class="perf-pax" style="color:var(--ink-mid);"><strong>'+tlMember.achieved+'</strong> PAX</div>';
+              html+='<div></div>';
+              html+='</div>';
+            }
+          }
+          // Show members under this TL
+          underTL.forEach(function(m){
+            var barClass,pctClass,badgeClass,badgeText;
+            var pctCapped=Math.min(m.pct,100);
+            if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
+            else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
+            else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
+            else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
+            html+='<div class="perf-member-row">';
+            html+='<div class="perf-member-name">'+m.name+'</div>';
+            html+='<div class="perf-bar-track"><div class="perf-bar-fill '+barClass+'" style="width:'+pctCapped+'%"></div></div>';
+            html+='<div class="perf-pct '+pctClass+'">'+m.pct+'%</div>';
+            html+='<div class="perf-pax"><strong>'+m.achieved+'</strong> / '+m.target+' PAX</div>';
+            html+='<span class="perf-badge '+badgeClass+'">'+badgeText+'</span>';
+            html+='</div>';
+          });
           html+='</div>';
         });
+        // Any members not under a known TL (catch-all)
+        var knownTLSet=new Set(tlIds);
+        var unclaimed=teamMembers.filter(function(m){return !knownTLSet.has(m.id)&&!knownTLSet.has(m.tlId);});
+        if(unclaimed.length>0){
+          html+='<div class="perf-tl-group">';
+          unclaimed.forEach(function(m){
+            if(m.hasTarget){
+              var barClass,pctClass,badgeClass,badgeText;
+              var pctCapped=Math.min(m.pct,100);
+              if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
+              else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
+              else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
+              else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
+              html+='<div class="perf-member-row">';
+              html+='<div class="perf-member-name">'+m.name+'</div>';
+              html+='<div class="perf-bar-track"><div class="perf-bar-fill '+barClass+'" style="width:'+pctCapped+'%"></div></div>';
+              html+='<div class="perf-pct '+pctClass+'">'+m.pct+'%</div>';
+              html+='<div class="perf-pax"><strong>'+m.achieved+'</strong> / '+m.target+' PAX</div>';
+              html+='<span class="perf-badge '+badgeClass+'">'+badgeText+'</span>';
+              html+='</div>';
+            } else if(m.achieved>0){
+              html+='<div class="perf-member-row">';
+              html+='<div class="perf-member-name" style="color:var(--ink-mid);">'+m.name+'</div>';
+              html+='<div></div><div></div>';
+              html+='<div class="perf-pax" style="color:var(--ink-mid);"><strong>'+m.achieved+'</strong> PAX</div>';
+              html+='<div></div>';
+              html+='</div>';
+            }
+          });
+          html+='</div>';
+        }
+      } else {
+        // Surat Branch, Nashik Branch, Retention — no TL grouping, direct members
+        html+='<div class="perf-tl-group">';
+        teamMembers.forEach(function(m){
+          if(m.hasTarget){
+            var barClass,pctClass,badgeClass,badgeText;
+            var pctCapped=Math.min(m.pct,100);
+            if(m.pct>=100){barClass='bar-gold';pctClass='pct-gold';badgeClass='badge-gold';badgeText='🔥 Target Hit';}
+            else if(m.pct>=80){barClass='bar-green';pctClass='pct-green';badgeClass='badge-green';badgeText='Strong';}
+            else if(m.pct>=50){barClass='bar-amber';pctClass='pct-amber';badgeClass='badge-amber';badgeText='On Track';}
+            else{barClass='bar-red';pctClass='pct-red';badgeClass='badge-red';badgeText='Building';}
+            html+='<div class="perf-member-row">';
+            html+='<div class="perf-member-name">'+m.name+'</div>';
+            html+='<div class="perf-bar-track"><div class="perf-bar-fill '+barClass+'" style="width:'+pctCapped+'%"></div></div>';
+            html+='<div class="perf-pct '+pctClass+'">'+m.pct+'%</div>';
+            html+='<div class="perf-pax"><strong>'+m.achieved+'</strong> / '+m.target+' PAX</div>';
+            html+='<span class="perf-badge '+badgeClass+'">'+badgeText+'</span>';
+            html+='</div>';
+          } else if(m.achieved>0){
+            html+='<div class="perf-member-row">';
+            html+='<div class="perf-member-name" style="color:var(--ink-mid);">'+m.name+'</div>';
+            html+='<div></div><div></div>';
+            html+='<div class="perf-pax" style="color:var(--ink-mid);"><strong>'+m.achieved+'</strong> PAX</div>';
+            html+='<div></div>';
+            html+='</div>';
+          }
+        });
         html+='</div>';
-      });
+      }
       html+='</div>';
     });
     document.getElementById('perfTeams').innerHTML=html;
