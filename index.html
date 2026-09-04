@@ -408,6 +408,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
     <span id="footerMsg">Connecting...</span>
   </div>
   <button class="test-btn" id="testBtn">🎉 Test Celebration</button>
+  <button class="test-btn" id="lastBookingBtn" style="margin-left:8px;">🏆 Last Booking</button>
 </div>
 
 <!-- ── CELEBRATION OVERLAY ── -->
@@ -630,6 +631,28 @@ document.getElementById('refreshBtn').addEventListener('click',function(){
   else fetchData();
 });
 document.getElementById('testBtn').addEventListener('click',function(){celebrate('Shailesh Joshi','SPARKLING EUROPE',520000,AV_COLOURS[0]);});
+document.getElementById('lastBookingBtn').addEventListener('click',function(){
+  var feed=document.getElementById('feed');
+  var firstRow=feed.querySelector('.b-row');
+  if(!firstRow){alert('No bookings loaded yet.');return;}
+  // Get data from the most recent row (first in feed since sorted desc)
+  var nameEl=firstRow.querySelector('.b-name');
+  var destEl=firstRow.querySelector('.b-dest');
+  var valEl=firstRow.querySelector('.b-value');
+  var name=nameEl?nameEl.textContent.trim():'—';
+  var dest=destEl?destEl.textContent.trim():'—';
+  var valText=valEl?valEl.textContent.trim():'';
+  // Convert display value back to number for celebrate()
+  var amount=0;
+  if(valText){
+    var v=valText.replace(/[₹,]/g,'');
+    if(v.indexOf('Cr')>-1)amount=parseFloat(v)*10000000;
+    else if(v.indexOf('L')>-1)amount=parseFloat(v)*100000;
+    else amount=parseFloat(v)||0;
+  }
+  var col=colourFor(name);
+  celebrate(name,dest,amount,col);
+});
 
 // ── Render booking row ──
 function renderRow(rec,isNew){
