@@ -484,8 +484,24 @@ setInterval(tickClock,1000);tickClock();
 
 // ── Audio ──
 function primeAudio(){if(soundPrimed)return;var a=document.getElementById('celebAudio');a.muted=true;a.play().then(function(){a.pause();a.currentTime=0;a.muted=false;soundPrimed=true;}).catch(function(){soundPrimed=true;});}
-function playSound(){try{var a=document.getElementById('celebAudio');a.muted=false;a.currentTime=0;a.volume=1;a.play();}catch(e){}}
-function stopSound(){try{var a=document.getElementById('celebAudio');a.pause();a.currentTime=0;}catch(e){}}
+var soundStopTimer=null;var soundFadeTimer=null;
+function playSound(){try{
+  var a=document.getElementById('celebAudio');
+  a.muted=false;a.currentTime=58;a.volume=1;a.play();
+  if(soundStopTimer)clearTimeout(soundStopTimer);
+  if(soundFadeTimer)clearInterval(soundFadeTimer);
+  // Fade out over last 2 seconds (starts at 14s, stops at 16s)
+  soundStopTimer=setTimeout(function(){
+    var fadeAudio=document.getElementById('celebAudio');
+    var vol=fadeAudio.volume;
+    soundFadeTimer=setInterval(function(){
+      vol=Math.max(0,vol-0.1);
+      fadeAudio.volume=vol;
+      if(vol<=0){clearInterval(soundFadeTimer);stopSound();}
+    },200);
+  },14000);
+}catch(e){}}
+function stopSound(){try{if(soundFadeTimer)clearInterval(soundFadeTimer);if(soundStopTimer)clearTimeout(soundStopTimer);var a=document.getElementById('celebAudio');a.volume=1;a.pause();a.currentTime=0;}catch(e){}}
 primeAudio();
 document.addEventListener('click',primeAudio,{once:true});
 
