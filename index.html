@@ -487,7 +487,7 @@ function primeAudio(){if(soundPrimed)return;var a=document.getElementById('celeb
 var soundStopTimer=null;var soundFadeTimer=null;
 function playSound(){try{
   var a=document.getElementById('celebAudio');
-  a.muted=false;a.currentTime=0;a.volume=1;a.play();
+  a.muted=false;a.currentTime=18;a.volume=1;a.play();
   if(soundStopTimer)clearTimeout(soundStopTimer);
   if(soundFadeTimer)clearInterval(soundFadeTimer);
   // Fade out over last 2 seconds (starts at 14s, stops at 16s)
@@ -499,7 +499,7 @@ function playSound(){try{
       fadeAudio.volume=vol;
       if(vol<=0){clearInterval(soundFadeTimer);stopSound();}
     },200);
-  },13000);
+  },11000);
 }catch(e){}}
 function stopSound(){try{if(soundFadeTimer)clearInterval(soundFadeTimer);if(soundStopTimer)clearTimeout(soundStopTimer);var a=document.getElementById('celebAudio');a.volume=1;a.pause();a.currentTime=0;}catch(e){}}
 primeAudio();
@@ -764,11 +764,14 @@ function fetchData(){
         var paxMap={};
         // Build set of Retention member IDs to exclude from leaderboard
         var retentionIds=new Set(lbTgt.filter(function(t){return t.Team==='Retention';}).map(function(t){return t.Team_Member&&t.Team_Member.id;}));
+        // Hardcode exclude pre-sales members with no target
+        var excludeIds=new Set(['287659000321884001']); // Mamata kharat
         lbAch.forEach(function(a){
           var mid=a.Team_Member&&a.Team_Member.id;
           if(!mid)return;
           // Exclude Retention team members from leaderboard
           if(retentionIds.has(mid))return;
+          if(excludeIds.has(mid))return;
           var name=userMap[mid]||mid;
           if(!paxMap[mid])paxMap[mid]={name:name,achieved:0,target:tgtMap[mid]||0};
           paxMap[mid].achieved+=(Number(a.PAX)||0);
