@@ -762,17 +762,16 @@ function fetchData(){
           if(mid)tgtMap[mid]=Number(t.Target_PAX)||0;
         });
         var paxMap={};
-        // Build set of Retention member IDs to exclude from leaderboard
-        var retentionIds=new Set(lbTgt.filter(function(t){return t.Team==='Retention';}).map(function(t){return t.Team_Member&&t.Team_Member.id;}));
-        // Hardcode exclude pre-sales members with no target
-        var excludeIds=new Set(['287659000321884001']); // Mamata kharat
+        // Teams excluded from leaderboard
+        var excludedTeams=new Set(['Retention','Operations','Pre Sales','Ticketing','Visa']);
         lbAch.forEach(function(a){
           var mid=a.Team_Member&&a.Team_Member.id;
           if(!mid)return;
-          // Exclude Retention team members from leaderboard
-          if(retentionIds.has(mid))return;
-          if(excludeIds.has(mid))return;
-          var name=userMap[mid]||mid;
+          // Exclude by team
+          if(excludedTeams.has(a.Team||''))return;
+          // Exclude inactive users not in userMap
+          if(!userMap[mid])return;
+          var name=userMap[mid];
           if(!paxMap[mid])paxMap[mid]={name:name,achieved:0,target:tgtMap[mid]||0};
           paxMap[mid].achieved+=(Number(a.PAX)||0);
         });
