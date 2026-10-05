@@ -64,6 +64,22 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .kpi-value{font-family:'Inter Tight',sans-serif;font-size:32px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-0.03em;}
 .kpi-card.hero .kpi-value{color:var(--orange);}
 .kpi-sub{font-size:11px;color:var(--ink-light);margin-top:4px;}
+.kpi-boxes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;}
+.kpi-box{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:7px 10px;}
+.kpi-box-lbl{font-size:9px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-light);margin-bottom:3px;}
+.kpi-box-val{font-size:14px;font-weight:700;}
+.kpi-box-val.fit{color:#185FA5;}
+.kpi-box-val.git{color:#B87D00;}
+.kpi-box-pax{font-size:10px;color:var(--ink-light);margin-top:1px;}
+.kpi-proj{margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.kpi-proj-lbl{font-size:10px;color:var(--ink-light);}
+.kpi-proj-val{font-size:11px;font-weight:700;color:var(--green);}
+.kpi-pax-split{display:flex;gap:6px;margin-top:8px;}
+.kpi-pax-pill{flex:1;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:5px 8px;text-align:center;}
+.kpi-pax-pill-lbl{font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-light);}
+.kpi-pax-pill-val{font-size:15px;font-weight:700;margin-top:1px;}
+.kpi-pax-pill-val.fit{color:#185FA5;}
+.kpi-pax-pill-val.git{color:#B87D00;}
 
 /* ── Current Month: two-column layout ── */
 .month-layout{display:flex;flex:1;overflow:hidden;gap:0;}
@@ -271,6 +287,22 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
       <div class="kpi-label">Total Value</div>
       <div class="kpi-value" id="sValue">—</div>
       <div class="kpi-sub">Confirmed revenue</div>
+      <div class="kpi-boxes">
+        <div class="kpi-box">
+          <div class="kpi-box-lbl">FIT Earnings</div>
+          <div class="kpi-box-val fit" id="sFitValue">—</div>
+          <div class="kpi-box-pax" id="sFitPax">— PAX</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-box-lbl">GIT Earnings</div>
+          <div class="kpi-box-val git" id="sGitValue">—</div>
+          <div class="kpi-box-pax" id="sGitPax">— PAX</div>
+        </div>
+      </div>
+      <div class="kpi-proj">
+        <span class="kpi-proj-lbl">Month-end projection</span>
+        <span class="kpi-proj-val" id="sProjection">—</span>
+      </div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Confirmations</div>
@@ -281,6 +313,16 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
       <div class="kpi-label">Total PAX</div>
       <div class="kpi-value" id="sPax">—</div>
       <div class="kpi-sub">Travellers confirmed</div>
+      <div class="kpi-pax-split">
+        <div class="kpi-pax-pill">
+          <div class="kpi-pax-pill-lbl">FIT</div>
+          <div class="kpi-pax-pill-val fit" id="sFitPaxTotal">—</div>
+        </div>
+        <div class="kpi-pax-pill">
+          <div class="kpi-pax-pill-lbl">GIT</div>
+          <div class="kpi-pax-pill-val git" id="sGitPaxTotal">—</div>
+        </div>
+      </div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Last Refreshed</div>
@@ -733,6 +775,32 @@ function fetchData(){
       var newIds=filtered.filter(function(r){return!knownIds.has(r.id);}).map(function(r){return r.id;});
       var totAmt=filtered.reduce(function(a,r){return a+(Number(r['Quote_Value'])||0);},0);
       var totPax=filtered.reduce(function(a,r){return a+(Number(r['Total_Passanger_Travelling'])||0);},0);
+      // FIT/GIT breakdown
+      var FIT_TYPES=['International Holiday Package','Domestic Holiday Package'];
+      var fitAmt=0,fitPax=0,gitAmt=0,gitPax=0;
+      filtered.forEach(function(r){
+        var val=Number(r['Quote_Value'])||0;
+        var pax=Number(r['Total_Passanger_Travelling'])||0;
+        if(isGIT(r)){gitAmt+=val;gitPax+=pax;}
+        else if(FIT_TYPES.indexOf(r['Type_of_Service'])>=0){fitAmt+=val;fitPax+=pax;}
+      });
+      // Month-end projection (only for current month)
+      if(activePeriod==='current'){
+        var now=new Date();
+        var dayOfMonth=now.getDate();
+        var daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+        var dailyRate=dayOfMonth>0?totAmt/dayOfMonth:0;
+        var projection=dailyRate*daysInMonth;
+        document.getElementById('sProjection').textContent=projection?fmtAmtShort(projection):'—';
+      } else {
+        document.getElementById('sProjection').textContent='—';
+      }
+      document.getElementById('sFitValue').textContent=fitAmt?fmtAmtShort(fitAmt):'—';
+      document.getElementById('sFitPax').textContent=fitPax+' PAX';
+      document.getElementById('sGitValue').textContent=gitAmt?fmtAmtShort(gitAmt):'—';
+      document.getElementById('sGitPax').textContent=gitPax+' PAX';
+      document.getElementById('sFitPaxTotal').textContent=fitPax||'—';
+      document.getElementById('sGitPaxTotal').textContent=gitPax||'—';
       document.getElementById('sTotal').textContent=filtered.length||'—';
       document.getElementById('sPax').textContent=totPax||'—';
       document.getElementById('sValue').textContent=totAmt?fmtAmtShort(totAmt):'—';
@@ -887,15 +955,20 @@ function fetchGroupDepartureMap(){return fetch(PROXY_BASE+'/api/group-departures
 
 // ── Performance ──
 function buildPerfMonths(){
-  perfMonths=[
-    {key:'2026-07',label:'July 2026'},
-    {key:'2026-08',label:'August 2026'},
-    {key:'2026-09',label:'September 2026'}
-  ];
+  // Auto-generate months from July 2026 up to current month
   var n=new Date();
   var currentKey=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+  var fyStart=new Date(2026,6,1); // July 2026
+  var monthLabels=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  perfMonths=[];
+  var d=new Date(fyStart);
+  while(d.getFullYear()<n.getFullYear()||(d.getFullYear()===n.getFullYear()&&d.getMonth()<=n.getMonth())){
+    var key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    perfMonths.push({key:key,label:monthLabels[d.getMonth()]+' '+d.getFullYear()});
+    d.setMonth(d.getMonth()+1);
+  }
   var match=perfMonths.find(function(m){return m.key===currentKey;});
-  activePerfMonth=match?match.key:'2026-07';
+  activePerfMonth=match?match.key:perfMonths[perfMonths.length-1].key;
   var pillsEl=document.getElementById('perfPills');
   pillsEl.innerHTML=perfMonths.map(function(m){
     return '<button class="perf-pill'+(m.key===activePerfMonth?' active':'')+'" onclick="selectPerfMonth(\''+m.key+'\',this)">'+m.label+'</button>';
