@@ -71,6 +71,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .kpi-box-val.fit{color:#185FA5;}
 .kpi-box-val.git{color:#B87D00;}
 .kpi-box-pax{font-size:10px;color:var(--ink-light);margin-top:1px;}
+.kpi-box-avg{font-size:10px;color:var(--ink-mid);margin-top:3px;padding-top:3px;border-top:1px solid var(--rule);}
 .kpi-proj{margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .kpi-proj-lbl{font-size:10px;color:var(--ink-light);}
 .kpi-proj-val{font-size:11px;font-weight:700;color:var(--green);}
@@ -325,14 +326,16 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
       <div class="kpi-sub">Confirmed revenue</div>
       <div class="kpi-boxes">
         <div class="kpi-box">
-          <div class="kpi-box-lbl">FIT Earnings</div>
+          <div class="kpi-box-lbl">FIT Revenue</div>
           <div class="kpi-box-val fit" id="sFitValue">—</div>
           <div class="kpi-box-pax" id="sFitPax">— PAX</div>
+          <div class="kpi-box-avg" id="sFitAvg">—</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-box-lbl">GIT Earnings</div>
+          <div class="kpi-box-lbl">GIT Revenue</div>
           <div class="kpi-box-val git" id="sGitValue">—</div>
           <div class="kpi-box-pax" id="sGitPax">— PAX</div>
+          <div class="kpi-box-avg" id="sGitAvg">—</div>
         </div>
       </div>
       <div class="kpi-proj">
@@ -833,8 +836,10 @@ function fetchData(){
       }
       document.getElementById('sFitValue').textContent=fitAmt?fmtAmtShort(fitAmt):'—';
       document.getElementById('sFitPax').textContent=fitPax+' PAX';
+      document.getElementById('sFitAvg').textContent=(fitPax>0&&fitAmt>0)?('avg '+fmtAmtShort(fitAmt/fitPax)+' / PAX'):'—';
       document.getElementById('sGitValue').textContent=gitAmt?fmtAmtShort(gitAmt):'—';
       document.getElementById('sGitPax').textContent=gitPax+' PAX';
+      document.getElementById('sGitAvg').textContent=(gitPax>0&&gitAmt>0)?('avg '+fmtAmtShort(gitAmt/gitPax)+' / PAX'):'—';
       document.getElementById('sFitPaxTotal').textContent=fitPax||'—';
       document.getElementById('sGitPaxTotal').textContent=gitPax||'—';
       document.getElementById('sTotal').textContent=filtered.length||'—';
