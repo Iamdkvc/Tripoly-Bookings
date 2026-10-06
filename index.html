@@ -67,10 +67,12 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 .kpi-boxes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;}
 .kpi-box{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:7px 10px;}
 .kpi-box-lbl{font-size:9px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-light);margin-bottom:3px;}
+.kpi-box-lbl.fit{color:#185FA5;}
+.kpi-box-lbl.git{color:#B87D00;}
 .kpi-box-val{font-size:14px;font-weight:700;}
 .kpi-box-val.fit{color:#185FA5;}
 .kpi-box-val.git{color:#B87D00;}
-.kpi-box-pax{font-size:10px;color:var(--ink-light);margin-top:1px;}
+.kpi-box-pax{font-size:11px;font-weight:600;color:var(--ink-mid);margin-top:1px;}
 .kpi-box-avg{font-size:10px;font-weight:600;margin-top:3px;padding-top:3px;border-top:1px solid var(--rule);}
 .kpi-box-avg.fit{color:#185FA5;}
 .kpi-box-avg.git{color:#B87D00;}
@@ -328,13 +330,13 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
       <div class="kpi-sub">Confirmed revenue</div>
       <div class="kpi-boxes">
         <div class="kpi-box">
-          <div class="kpi-box-lbl">FIT Revenue</div>
+          <div class="kpi-box-lbl fit">FIT Revenue</div>
           <div class="kpi-box-val fit" id="sFitValue">—</div>
           <div class="kpi-box-pax" id="sFitPax">— PAX</div>
           <div class="kpi-box-avg fit" id="sFitAvg">—</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-box-lbl">GIT Revenue</div>
+          <div class="kpi-box-lbl git">GIT Revenue</div>
           <div class="kpi-box-val git" id="sGitValue">—</div>
           <div class="kpi-box-pax" id="sGitPax">— PAX</div>
           <div class="kpi-box-avg git" id="sGitAvg">—</div>
