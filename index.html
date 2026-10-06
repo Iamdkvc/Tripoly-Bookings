@@ -244,6 +244,42 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
 </head>
 <body>
 <audio id="celebAudio" src="celebration.mp3" preload="auto"></audio>
+
+<!-- ══ ACCESS GATE OVERLAY ══ -->
+<div id="access-gate" style="display:none;position:fixed;inset:0;z-index:500;background:#F7F4EF;align-items:center;justify-content:center;font-family:'Inter',sans-serif;">
+  <div style="background:#fff;border-radius:20px;padding:44px 48px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(26,18,8,0.12);text-align:center;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;">
+      <img src="logo.png" alt="Tripoly" style="height:40px;width:auto;"/>
+      <span style="font-family:'Inter Tight',sans-serif;font-size:24px;font-weight:800;color:#1A1208;">tripoly</span>
+    </div>
+    <!-- Request form state -->
+    <div id="gate-form">
+      <div style="width:6px;height:36px;background:#E8613A;border-radius:3px;margin:0 auto 16px;"></div>
+      <h1 style="font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:800;color:#1A1208;margin:0 0 6px;">Access required</h1>
+      <p style="font-size:13px;color:#9B8E80;margin:0 0 24px;line-height:1.5;">This dashboard shows confidential live data. Request access and someone from IT will approve it.</p>
+      <input id="gate-name" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #E2DDD6;border-radius:10px;font-size:14px;margin-bottom:10px;font-family:'Inter',sans-serif;outline:none;"/>
+      <input id="gate-email" type="email" placeholder="Your email" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #E2DDD6;border-radius:10px;font-size:14px;margin-bottom:16px;font-family:'Inter',sans-serif;outline:none;"/>
+      <button id="gate-submit" style="width:100%;background:#E8613A;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Request Access</button>
+      <p id="gate-form-msg" style="font-size:12px;color:#C0392B;margin:12px 0 0;min-height:16px;"></p>
+    </div>
+    <!-- Waiting state -->
+    <div id="gate-waiting" style="display:none;">
+      <div class="gate-spinner" style="width:36px;height:36px;border:3px solid #E2DDD6;border-top-color:#E8613A;border-radius:50%;margin:0 auto 20px;animation:gateSpin 0.9s linear infinite;"></div>
+      <h1 style="font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:800;color:#1A1208;margin:0 0 6px;">Waiting for approval</h1>
+      <p style="font-size:13px;color:#9B8E80;margin:0;line-height:1.5;">Your request has been sent to the IT team. This screen will unlock automatically once it's approved.</p>
+      <p id="gate-waiting-sub" style="font-size:12px;color:#C3B9AC;margin:16px 0 0;">Checking every few seconds…</p>
+    </div>
+    <!-- Denied state -->
+    <div id="gate-denied" style="display:none;">
+      <div style="width:6px;height:36px;background:#C0392B;border-radius:3px;margin:0 auto 16px;"></div>
+      <h1 style="font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:800;color:#1A1208;margin:0 0 6px;">Access denied</h1>
+      <p style="font-size:13px;color:#9B8E80;margin:0 0 20px;line-height:1.5;">Your request was not approved. If you believe this is a mistake, contact the IT team.</p>
+      <button id="gate-retry" style="background:#F0EDE7;color:#4A3F32;border:1px solid #E2DDD6;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Request again</button>
+    </div>
+  </div>
+</div>
+<style>@keyframes gateSpin{to{transform:rotate(360deg);}}</style>
+
 <div id="page-wrapper">
 
 <!-- ── HEADER ── -->
@@ -1258,11 +1294,139 @@ function startPerfScroll(){
 }
 function stopPerfScroll(){if(perfScrollRaf){cancelAnimationFrame(perfScrollRaf);perfScrollRaf=null;}}
 
-// ── Startup ──
-Promise.all([fetchUserMap(),fetchGroupDepartureMap()]).then(function(){
-  buildPerfMonths();
-  switchTab('current');
-});
+// ── Dashboard startup (only runs AFTER access is granted) ──
+var dashboardStarted = false;
+function startDashboard(){
+  if(dashboardStarted) return;
+  dashboardStarted = true;
+  var gate = document.getElementById('access-gate');
+  if(gate) gate.style.display = 'none';
+  Promise.all([fetchUserMap(),fetchGroupDepartureMap()]).then(function(){
+    buildPerfMonths();
+    switchTab('current');
+  });
+}
+
+// ══ ACCESS GATE ══
+var ACCESS_LS_KEY = 'tripoly_access';
+var DEVICE_LS_KEY = 'tripoly_device_id';
+var gatePollTimer = null;
+
+function getDeviceId(){
+  var id = null;
+  try { id = localStorage.getItem(DEVICE_LS_KEY); } catch(e){}
+  if(!id){
+    id = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    try { localStorage.setItem(DEVICE_LS_KEY, id); } catch(e){}
+  }
+  return id;
+}
+
+function cachedAccessValid(){
+  try {
+    var raw = localStorage.getItem(ACCESS_LS_KEY);
+    if(!raw) return false;
+    var obj = JSON.parse(raw);
+    return obj && obj.expiresAt && obj.expiresAt > Date.now();
+  } catch(e){ return false; }
+}
+
+function cacheAccess(expiresAt){
+  try { localStorage.setItem(ACCESS_LS_KEY, JSON.stringify({expiresAt:expiresAt})); } catch(e){}
+}
+
+function showGateState(state){
+  var gate = document.getElementById('access-gate');
+  if(gate) gate.style.display = 'flex';
+  document.getElementById('gate-form').style.display    = (state==='form')    ? 'block' : 'none';
+  document.getElementById('gate-waiting').style.display = (state==='waiting') ? 'block' : 'none';
+  document.getElementById('gate-denied').style.display  = (state==='denied')  ? 'block' : 'none';
+}
+
+function startGatePolling(){
+  if(gatePollTimer) clearInterval(gatePollTimer);
+  var deviceId = getDeviceId();
+  gatePollTimer = setInterval(function(){
+    fetch(PROXY_BASE + '/api/access/status?deviceId=' + encodeURIComponent(deviceId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status === 'approved'){
+          clearInterval(gatePollTimer);
+          cacheAccess(d.expiresAt);
+          startDashboard();
+        } else if(d.status === 'none'){
+          // request was denied (removed from pending without approval)
+          clearInterval(gatePollTimer);
+          showGateState('denied');
+        }
+        // 'pending' → keep waiting
+      })
+      .catch(function(){ /* transient — keep polling */ });
+  }, 5000);
+}
+
+function submitAccessRequest(){
+  var name = document.getElementById('gate-name').value.trim();
+  var email = document.getElementById('gate-email').value.trim();
+  var msg = document.getElementById('gate-form-msg');
+  if(!name || !email){ msg.textContent = 'Please enter your name and email.'; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ msg.textContent = 'Please enter a valid email.'; return; }
+  msg.textContent = '';
+  var btn = document.getElementById('gate-submit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  fetch(PROXY_BASE + '/api/access/request', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ deviceId:getDeviceId(), name:name, email:email })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    btn.disabled = false; btn.textContent = 'Request Access';
+    if(d.status === 'approved'){
+      cacheAccess(d.expiresAt); startDashboard();
+    } else if(d.status === 'pending'){
+      showGateState('waiting'); startGatePolling();
+    } else {
+      msg.textContent = 'Could not send request. Please try again.';
+    }
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'Request Access';
+    msg.textContent = 'Network error. Please try again.';
+  });
+}
+
+function initAccessGate(){
+  // Wire up buttons
+  var submitBtn = document.getElementById('gate-submit');
+  if(submitBtn) submitBtn.addEventListener('click', submitAccessRequest);
+  var retryBtn = document.getElementById('gate-retry');
+  if(retryBtn) retryBtn.addEventListener('click', function(){ showGateState('form'); });
+  var emailInput = document.getElementById('gate-email');
+  if(emailInput) emailInput.addEventListener('keydown', function(e){ if(e.key==='Enter') submitAccessRequest(); });
+
+  // 1. Fast path — valid cached approval (TVs unlock instantly, no network wait)
+  if(cachedAccessValid()){ startDashboard(); return; }
+
+  // 2. Ask the server about this device
+  var deviceId = getDeviceId();
+  fetch(PROXY_BASE + '/api/access/status?deviceId=' + encodeURIComponent(deviceId))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.status === 'approved'){
+        cacheAccess(d.expiresAt); startDashboard();
+      } else if(d.status === 'pending'){
+        showGateState('waiting'); startGatePolling();
+      } else {
+        showGateState('form');
+      }
+    })
+    .catch(function(){
+      // SAFETY FAIL-OPEN: if the access API is unreachable, do NOT leave a
+      // running TV stuck on a lock screen — start the dashboard. (Can be
+      // switched to fail-closed later once the gate is proven in production.)
+      startDashboard();
+    });
+}
+
+// Boot the gate on load (replaces the old direct dashboard startup)
+initAccessGate();
 </script>
 </body>
 </html>

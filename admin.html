@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tripoly Dashboard — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600&display=swap"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#F7F4EF; --surface:#FFFFFF; --paper:#F0EDE7; --ink:#1A1208; --ink-mid:#4A3F32;
+  --ink-light:#9B8E80; --orange:#E8613A; --green:#1A7A4A; --red:#C0392B; --rule:#E2DDD6;
+}
+body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;min-height:100vh;}
+.tight{font-family:'Inter Tight',sans-serif;}
+
+/* Login */
+#login{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+.login-card{background:var(--surface);border-radius:20px;padding:44px 48px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(26,18,8,0.1);text-align:center;}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px;}
+.brand span{font-family:'Inter Tight',sans-serif;font-size:24px;font-weight:800;}
+.login-card h1{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:800;margin-bottom:6px;}
+.login-card p{font-size:13px;color:var(--ink-light);margin-bottom:24px;}
+input[type=password]{width:100%;padding:12px 14px;border:1px solid var(--rule);border-radius:10px;font-size:14px;margin-bottom:14px;font-family:'Inter',sans-serif;outline:none;}
+input[type=password]:focus{border-color:var(--orange);}
+.btn{background:var(--orange);color:#fff;border:none;padding:13px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;width:100%;}
+.btn:disabled{opacity:0.6;cursor:default;}
+.err{font-size:12px;color:var(--red);margin-top:12px;min-height:16px;}
+
+/* Dashboard */
+#admin{display:none;max-width:900px;margin:0 auto;padding:32px 24px;}
+.admin-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.admin-head h1{font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:800;}
+.admin-head .sub{font-size:12px;color:var(--ink-light);margin-top:2px;}
+.refresh{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;color:var(--ink-mid);cursor:pointer;font-family:'Inter',sans-serif;}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;overflow:hidden;}
+.card-head{padding:14px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;}
+.card-head .title{font-family:'Inter Tight',sans-serif;font-size:15px;font-weight:700;}
+.pending-pill{font-size:11px;font-weight:600;background:#FEF3C7;color:#B87D00;padding:3px 10px;border-radius:20px;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-light);padding:10px 20px;border-bottom:1px solid var(--rule);}
+td{padding:12px 20px;border-bottom:1px solid var(--paper);font-size:13px;}
+tr:last-child td{border-bottom:none;}
+.dev-name{font-weight:600;color:var(--ink);}
+.dev-email{font-size:12px;color:var(--ink-light);margin-top:1px;}
+.dev-id{font-family:monospace;font-size:11px;color:var(--ink-light);}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;}
+.badge-active{background:#EAF5EE;color:var(--green);}
+.badge-expired{background:#FDECEA;color:var(--red);}
+.revoke{background:#FDECEA;color:var(--red);border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;}
+.empty{padding:40px 20px;text-align:center;color:var(--ink-light);font-size:13px;}
+.logout{font-size:12px;color:var(--ink-light);cursor:pointer;text-decoration:underline;margin-left:16px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="login-card">
+    <div class="brand"><img src="logo.png" alt="Tripoly" style="height:36px;width:auto;"/><span>tripoly</span></div>
+    <h1>Admin access</h1>
+    <p>Enter the admin password to manage dashboard access.</p>
+    <input id="pw" type="password" placeholder="Admin password" autocomplete="current-password"/>
+    <button class="btn" id="loginBtn">Sign in</button>
+    <p class="err" id="loginErr"></p>
+  </div>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="admin">
+  <div class="admin-head">
+    <div>
+      <h1>Access Management <span class="logout" id="logout">sign out</span></h1>
+      <div class="sub" id="adminSub">—</div>
+    </div>
+    <button class="refresh" id="refreshBtn">↻ Refresh</button>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="title">Approved Devices</div>
+      <div class="pending-pill" id="pendingPill" style="display:none;"></div>
+    </div>
+    <div id="deviceTableWrap">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var PROXY_BASE = 'https://tripoly-proxy.onrender.com';
+var adminPw = '';
+
+function fmtDate(ts){
+  if(!ts) return '—';
+  var d = new Date(ts);
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) + ', ' +
+         d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+function doLogin(){
+  var pw = document.getElementById('pw').value;
+  var err = document.getElementById('loginErr');
+  var btn = document.getElementById('loginBtn');
+  if(!pw){ err.textContent = 'Please enter the password.'; return; }
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+  fetch(PROXY_BASE + '/api/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ password: pw })
+  }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      btn.disabled = false; btn.textContent = 'Sign in';
+      if(res.ok && res.d.ok){
+        adminPw = pw;
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('admin').style.display = 'block';
+        loadDevices();
+      } else {
+        err.textContent = 'Invalid password.';
+      }
+    }).catch(function(){
+      btn.disabled = false; btn.textContent = 'Sign in';
+      err.textContent = 'Network error. Please try again.';
+    });
+}
+
+function loadDevices(){
+  var wrap = document.getElementById('deviceTableWrap');
+  fetch(PROXY_BASE + '/api/admin/devices', { headers: { 'x-admin-password': adminPw } })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var devices = d.devices || [];
+      document.getElementById('adminSub').textContent =
+        devices.length + ' device' + (devices.length!==1?'s':'') + ' with access';
+      var pill = document.getElementById('pendingPill');
+      if(d.pending > 0){ pill.style.display='inline-block'; pill.textContent = d.pending + ' pending request' + (d.pending!==1?'s':''); }
+      else { pill.style.display='none'; }
+
+      if(devices.length === 0){
+        wrap.innerHTML = '<div class="empty">No devices have been granted access yet.</div>';
+        return;
+      }
+      var rows = devices.map(function(dev){
+        var badge = dev.expired
+          ? '<span class="badge badge-expired">Expired</span>'
+          : '<span class="badge badge-active">Active</span>';
+        return '<tr>' +
+          '<td><div class="dev-name">' + escapeHtml(dev.name) + '</div><div class="dev-email">' + escapeHtml(dev.email) + '</div></td>' +
+          '<td>' + badge + '</td>' +
+          '<td>' + fmtDate(dev.approvedAt) + '</td>' +
+          '<td>' + fmtDate(dev.expiresAt) + '</td>' +
+          '<td style="text-align:right;"><button class="revoke" data-id="' + escapeHtml(dev.deviceId) + '">Revoke</button></td>' +
+        '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<table><thead><tr><th>User</th><th>Status</th><th>Approved</th><th>Expires</th><th></th></tr></thead><tbody>' +
+        rows + '</tbody></table>';
+      // Wire revoke buttons
+      var btns = wrap.querySelectorAll('.revoke');
+      for(var i=0;i<btns.length;i++){
+        btns[i].addEventListener('click', function(){ revokeDevice(this.getAttribute('data-id'), this); });
+      }
+    }).catch(function(){
+      wrap.innerHTML = '<div class="empty">Could not load devices. Check your connection and try Refresh.</div>';
+    });
+}
+
+function revokeDevice(deviceId, btn){
+  if(!confirm('Revoke access for this device? They will need approval again.')) return;
+  btn.disabled = true; btn.textContent = 'Revoking…';
+  fetch(PROXY_BASE + '/api/admin/devices/' + encodeURIComponent(deviceId), {
+    method:'DELETE', headers: { 'x-admin-password': adminPw }
+  }).then(function(r){ return r.json(); })
+    .then(function(d){ loadDevices(); })
+    .catch(function(){ btn.disabled = false; btn.textContent = 'Revoke'; alert('Could not revoke. Try again.'); });
+}
+
+function escapeHtml(s){
+  return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Wire up
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+document.getElementById('refreshBtn').addEventListener('click', loadDevices);
+document.getElementById('logout').addEventListener('click', function(){
+  adminPw = '';
+  document.getElementById('admin').style.display = 'none';
+  document.getElementById('login').style.display = 'flex';
+  document.getElementById('pw').value = '';
+});
+</script>
+</body>
+</html>
