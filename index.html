@@ -318,6 +318,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
   <button class="tab-btn" id="tabLast" onclick="switchTab('last')">Last Month</button>
   <button class="tab-btn" id="tabFY" onclick="switchTab('fy')" style="display:none;">FY 2026–27</button>
   <button class="tab-btn" id="tabPerf" onclick="switchTab('performance')">Performance</button>
+  <button class="tab-btn" id="tabMarketing" onclick="switchTab('marketing')" style="display:none;">Marketing Analytics</button>
 </div>
 
 <!-- ══ CURRENT / LAST MONTH VIEW ══ -->
@@ -450,6 +451,14 @@ html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Inter',
       <span class="fy-progress-pct" id="fyProgressPct">0% of year complete</span>
       <span class="fy-progress-label">End of Year</span>
     </div>
+  </div>
+</div>
+
+<!-- ══ MARKETING ANALYTICS VIEW (access-gated, blank placeholder) ══ -->
+<div class="view" id="viewMarketing">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--ink-light);text-align:center;padding:40px;">
+    <div style="font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:800;color:var(--ink);">Marketing Analytics</div>
+    <div style="font-size:14px;">Coming soon.</div>
   </div>
 </div>
 
@@ -639,7 +648,7 @@ function isQualifying(r){
 // ── Tab switching ──
 function switchTab(period){
   activePeriod=period;
-  ['Current','Last','FY','Perf'].forEach(function(t){
+  ['Current','Last','FY','Perf','Marketing'].forEach(function(t){
     var el=document.getElementById('tab'+t);
     if(el) el.classList.remove('active');
   });
@@ -669,6 +678,10 @@ function switchTab(period){
     if(perfMonths.length===0) buildPerfMonths();
     fetchPerformanceData(activePerfMonth);
     startPerfScroll();
+  } else if(period==='marketing'){
+    document.getElementById('tabMarketing').classList.add('active');
+    document.getElementById('viewMarketing').classList.add('active');
+    document.getElementById('headerSub').textContent='Marketing Analytics';
   }
 
   if(period!=='performance') stopPerfScroll();
@@ -1310,6 +1323,7 @@ function startDashboard(){
   dashboardStarted = true;
   var gate = document.getElementById('access-gate');
   if(gate) gate.style.display = 'none';
+  applyMarketingTab();
   Promise.all([fetchUserMap(),fetchGroupDepartureMap()]).then(function(){
     buildPerfMonths();
     switchTab('current');
@@ -1320,6 +1334,7 @@ function startDashboard(){
 var ACCESS_LS_KEY = 'tripoly_access';
 var DEVICE_LS_KEY = 'tripoly_device_id';
 var gatePollTimer = null;
+var canSeeMarketing = false;
 
 function getDeviceId(){
   var id = null;
@@ -1336,12 +1351,22 @@ function cachedAccessValid(){
     var raw = localStorage.getItem(ACCESS_LS_KEY);
     if(!raw) return false;
     var obj = JSON.parse(raw);
-    return obj && obj.expiresAt && obj.expiresAt > Date.now();
+    if(obj && obj.expiresAt && obj.expiresAt > Date.now()){
+      canSeeMarketing = (obj.marketing === true);
+      return true;
+    }
+    return false;
   } catch(e){ return false; }
 }
 
-function cacheAccess(expiresAt){
-  try { localStorage.setItem(ACCESS_LS_KEY, JSON.stringify({expiresAt:expiresAt})); } catch(e){}
+function cacheAccess(expiresAt, marketing){
+  canSeeMarketing = (marketing === true);
+  try { localStorage.setItem(ACCESS_LS_KEY, JSON.stringify({expiresAt:expiresAt, marketing:canSeeMarketing})); } catch(e){}
+}
+
+function applyMarketingTab(){
+  var t = document.getElementById('tabMarketing');
+  if(t) t.style.display = canSeeMarketing ? 'inline-block' : 'none';
 }
 
 function showGateState(state){
@@ -1361,7 +1386,7 @@ function startGatePolling(){
       .then(function(d){
         if(d.status === 'approved'){
           clearInterval(gatePollTimer);
-          cacheAccess(d.expiresAt);
+          cacheAccess(d.expiresAt, d.marketing);
           startDashboard();
         } else if(d.status === 'none'){
           // request was denied (removed from pending without approval)
@@ -1389,7 +1414,7 @@ function submitAccessRequest(){
   }).then(function(r){ return r.json(); }).then(function(d){
     btn.disabled = false; btn.textContent = 'Request Access';
     if(d.status === 'approved'){
-      cacheAccess(d.expiresAt); startDashboard();
+      cacheAccess(d.expiresAt, d.marketing); startDashboard();
     } else if(d.status === 'pending'){
       showGateState('waiting'); startGatePolling();
     } else {
@@ -1419,7 +1444,7 @@ function initAccessGate(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d.status === 'approved'){
-        cacheAccess(d.expiresAt); startDashboard();
+        cacheAccess(d.expiresAt, d.marketing); startDashboard();
       } else if(d.status === 'pending'){
         showGateState('waiting'); startGatePolling();
       } else {
