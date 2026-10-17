@@ -1369,6 +1369,22 @@ function applyMarketingTab(){
   if(t) t.style.display = canSeeMarketing ? 'inline-block' : 'none';
 }
 
+// After a cached fast-path start, re-check the server so marketing access
+// changes (admin toggled someone on/off) take effect without clearing cache.
+function refreshMarketingFlag(){
+  try {
+    fetch(PROXY_BASE + '/api/access/status?deviceId=' + encodeURIComponent(getDeviceId()))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status === 'approved'){
+          cacheAccess(d.expiresAt, d.marketing);
+          applyMarketingTab();
+        }
+      })
+      .catch(function(){ /* offline/transient — keep cached state */ });
+  } catch(e){}
+}
+
 function showGateState(state){
   var gate = document.getElementById('access-gate');
   if(gate) gate.style.display = 'flex';
@@ -1436,7 +1452,7 @@ function initAccessGate(){
   if(emailInput) emailInput.addEventListener('keydown', function(e){ if(e.key==='Enter') submitAccessRequest(); });
 
   // 1. Fast path — valid cached approval (TVs unlock instantly, no network wait)
-  if(cachedAccessValid()){ startDashboard(); return; }
+  if(cachedAccessValid()){ startDashboard(); refreshMarketingFlag(); return; }
 
   // 2. Ask the server about this device
   var deviceId = getDeviceId();
